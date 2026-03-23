@@ -1,0 +1,9 @@
+fastapi
+uvicorn
+streamlit
+pymupdf
+python-docx
+groq
+sqlmodel
+python-dotenv
+pandas
