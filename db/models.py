@@ -34,3 +34,13 @@ class Decision(SQLModel, table=True):
     hr_override: Optional[str] = None
     notes: Optional[str] = None
     decided_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class MemoryRecord(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    candidate_id: int
+    job_id: int
+    summary: Optional[str] = None
+    embedding: Optional[str] = None
+    source: Optional[str] = None
+    created_at: datetime = Field(default_factory=datetime.utcnow)
