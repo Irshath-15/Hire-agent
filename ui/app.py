@@ -292,11 +292,12 @@ for col, label, value, color in [
 st.markdown("<div style='margin-top:24px;'></div>", unsafe_allow_html=True)
 
 # ── Tabs ──────────────────────────────────────────────────
-tab1, tab2, tab3, tab4 = st.tabs([
+tab1, tab2, tab3, tab4, tab5 = st.tabs([
     "Dashboard",
     "Post a Job",
     "Upload Resumes",
-    "Candidates"
+    "Candidates",
+    "Database"
 ])
 
 # ══════════════════════════════════════════════════════════
@@ -941,3 +942,120 @@ with tab4:
                         delete_candidate(c["id"])
                         st.success("Candidate removed from pipeline.")
                         st.rerun()
+
+# ══════════════════════════════════════════════════════════
+# TAB 5 — Database Viewer
+# ══════════════════════════════════════════════════════════
+with tab5:
+    st.markdown("<div class='section-header'>Database Viewer</div>", unsafe_allow_html=True)
+    st.markdown(
+        "<div class='section-sub'>View and manage all records in the hiring system</div>",
+        unsafe_allow_html=True
+    )
+
+    db_tab1, db_tab2, db_tab3 = st.tabs(["Candidates", "Jobs", "Decisions"])
+
+    # ── Database Tab 1: Candidates ────────────────────
+    with db_tab1:
+        st.markdown("### All Candidates")
+        candidates_data = get_all_candidates()
+        
+        if candidates_data:
+            df_candidates = pd.DataFrame(candidates_data)
+            
+            # Display stats
+            col1, col2, col3, col4 = st.columns(4)
+            with col1:
+                st.metric("Total Candidates", len(df_candidates))
+            with col2:
+                st.metric("Shortlisted", len([c for c in df_candidates["status"] if c == "SHORTLIST"]))
+            with col3:
+                st.metric("Under Review", len([c for c in df_candidates["status"] if c == "REVIEW"]))
+            with col4:
+                st.metric("Rejected", len([c for c in df_candidates["status"] if c == "REJECT"]))
+            
+            # Display table
+            st.markdown("---")
+            st.dataframe(
+                df_candidates[["id", "name", "email", "current_role", "score", "status", "uploaded_at"]].sort_values("id", ascending=False),
+                use_container_width=True,
+                hide_index=True
+            )
+            
+            # Download CSV
+            csv = df_candidates.to_csv(index=False)
+            st.download_button(
+                label="📥 Download Candidates CSV",
+                data=csv,
+                file_name="candidates.csv",
+                mime="text/csv"
+            )
+        else:
+            st.info("No candidates in database yet.")
+
+    # ── Database Tab 2: Jobs ───────────────────────────
+    with db_tab2:
+        st.markdown("### All Job Postings")
+        jobs_data = get_all_jobs()
+        
+        if jobs_data:
+            df_jobs = pd.DataFrame(jobs_data)
+            
+            st.metric("Total Jobs", len(df_jobs))
+            st.markdown("---")
+            
+            st.dataframe(
+                df_jobs[["id", "title", "description"]].sort_values("id", ascending=False),
+                use_container_width=True,
+                hide_index=True
+            )
+            
+            csv = df_jobs.to_csv(index=False)
+            st.download_button(
+                label="📥 Download Jobs CSV",
+                data=csv,
+                file_name="jobs.csv",
+                mime="text/csv"
+            )
+        else:
+            st.info("No jobs posted yet.")
+
+    # ── Database Tab 3: Decisions ──────────────────────
+    with db_tab3:
+        st.markdown("### All Decisions")
+        create_db()
+        
+        with Session(engine) as session:
+            decisions = session.exec(select(Decision)).all()
+            
+        if decisions:
+            decisions_list = [
+                {
+                    "id": d.id,
+                    "candidate_id": d.candidate_id,
+                    "original_decision": d.original_decision,
+                    "notes": d.notes,
+                    "created_at": str(d.created_at) if hasattr(d, 'created_at') else "N/A"
+                }
+                for d in decisions
+            ]
+            df_decisions = pd.DataFrame(decisions_list)
+            
+            st.metric("Total Decisions", len(df_decisions))
+            st.markdown("---")
+            
+            st.dataframe(
+                df_decisions.sort_values("id", ascending=False),
+                use_container_width=True,
+                hide_index=True
+            )
+            
+            csv = df_decisions.to_csv(index=False)
+            st.download_button(
+                label="📥 Download Decisions CSV",
+                data=csv,
+                file_name="decisions.csv",
+                mime="text/csv"
+            )
+        else:
+            st.info("No decisions recorded yet.")
