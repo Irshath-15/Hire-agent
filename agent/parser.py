@@ -152,6 +152,40 @@ Resume text:
             "red_flags": None
         }
 
+def infer_name_from_text(raw_text: str) -> str | None:
+    """Try to infer candidate name from raw resume text."""
+    import re
+
+    if not raw_text or not raw_text.strip():
+        return None
+
+    # 1) Look for explicit "Name:" line
+    m = re.search(r"^\s*name\s*[:\-]\s*([A-Za-zÀ-ÖØ-öø-ÿ .,'-]{2,80})$", raw_text, re.I | re.M)
+    if m:
+        candidate = m.group(1).strip()
+        if candidate and len(candidate.split()) <= 5:
+            return candidate
+
+    # 2) Take first non-empty line, avoid headings and generic lines
+    for line in [l.strip() for l in raw_text.splitlines() if l.strip()]:
+        lc = line.lower()
+        if any(w in lc for w in ["resume", "curriculum", "email", "phone", "experience", "summary", "objective", "profile"]):
+            continue
+        words = line.split()
+        if 1 < len(words) <= 5 and all(re.match(r"^[A-Za-zÀ-ÖØ-öø-ÿ.'-]+$", w) for w in words):
+            return line
+        break
+
+    # 3) Use email local part if available
+    m2 = re.search(r"([\w.%+-]+)@([\w.-]+\.[A-Za-z]{2,})", raw_text)
+    if m2:
+        local = m2.group(1).replace('.', ' ').replace('_', ' ').title()
+        if local and len(local.split()) <= 5:
+            return local
+
+    return None
+
+
 def parse_resume(file_path: str) -> dict:
     raw_text, is_image_based = extract_text(file_path)
     
@@ -173,4 +207,10 @@ def parse_resume(file_path: str) -> dict:
     parsed = parse_resume_with_ai(raw_text)
     parsed['raw_text'] = raw_text
     parsed['is_image_based'] = is_image_based
+
+    if not parsed.get('name'):
+        inferred = infer_name_from_text(raw_text)
+        if inferred:
+            parsed['name'] = inferred
+    
     return parsed

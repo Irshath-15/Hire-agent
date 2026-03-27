@@ -2,6 +2,7 @@ import streamlit as st
 import sys
 import os
 import pandas as pd
+import plotly.express as px
 from datetime import datetime
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -29,14 +30,19 @@ st.set_page_config(
 st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
-    html, body, [class*="css"] { font-family: 'Inter', sans-serif; color: #212529; }
-    .main { background-color: #F8F9FA; }
+
+    html, body, [class*="css"] {
+        font-family: 'Inter', sans-serif;
+        color: #212529;
+        background: #F8F9FA;
+    }
 
     section[data-testid="stSidebar"] {
         background: #E9ECEF;
         border-right: none;
+        color: #212529 !important;
     }
-    section[data-testid="stSidebar"] * { color: #212529 !important; }
+
     section[data-testid="stSidebar"] .stSelectbox label,
     section[data-testid="stSidebar"] .stTextInput label,
     section[data-testid="stSidebar"] .stSelectbox div(data-testid="baseButton-secondary") {
@@ -44,129 +50,103 @@ st.markdown("""
         font-size: 12px !important;
         font-weight: 500 !important;
     }
-    section[data-testid="stSidebar"] span { color: #212529 !important; }
 
     .stTabs [data-baseweb="tab-list"] {
-        background: white; border-radius: 12px;
-        padding: 4px; gap: 4px; border: 1px solid #DEE2E6;
+        background: white;
+        border-radius: 12px;
+        padding: 4px;
+        gap: 4px;
+        border: 1px solid #DEE2E6;
     }
+
     .stTabs [data-baseweb="tab"] {
-        border-radius: 8px; padding: 8px 20px;
-        font-weight: 500; font-size: 14px; color: #495057;
+        border-radius: 8px;
+        padding: 8px 20px;
+        font-weight: 500;
+        font-size: 14px;
+        color: #495057;
     }
+
     .stTabs [aria-selected="true"] {
-        background: #007BFF !important; color: white !important;
+        background: #007BFF !important;
+        color: white !important;
     }
-    .stTabs [data-baseweb="tab"] span { color: #495057 !important; }
 
     .stButton > button {
-        background: #007BFF; color: white; border: none;
-        border-radius: 8px; padding: 8px 20px;
-        font-weight: 500; font-size: 14px; transition: all 0.2s;
+        background: #007BFF;
+        color: white;
+        border: none;
+        border-radius: 8px;
+        padding: 8px 20px;
+        font-weight: 500;
+        font-size: 14px;
+        transition: all 0.2s;
     }
-    .stButton > button:hover { background: #0056D2; transform: translateY(-1px); }
+
+    .stButton > button:hover {
+        background: #0056D2;
+        transform: translateY(-1px);
+    }
+
+    .stButton > button.primary {
+        background: #0F2A4D;
+    }
+
+    .stAlert, .stNotification, .info-pill {
+        border-color: #DEE2E6;
+    }
 
     .stTextInput > div > div > input,
     .stTextArea > div > div > textarea,
     .stSelectbox > div > div {
-        border-radius: 8px; border: 1.5px solid #DEE2E6; font-size: 14px; color: #212529;
+        border-radius: 8px;
+        border: 1.5px solid #DEE2E6;
+        font-size: 14px;
+        color: #212529;
     }
+
     .stTextInput > div > div > input::placeholder,
     .stTextArea > div > div > textarea::placeholder {
         color: #495057;
     }
+
     .stTextInput > div > div > input:focus,
     .stTextArea > div > div > textarea:focus {
         border-color: #007BFF;
         box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.15);
     }
 
-    .metric-card {
-        background: #FFFFFF; border-radius: 16px;
-        padding: 1.25rem; border: 1px solid #DEE2E6; text-align: center;
-    }
-    .metric-number { font-size: 32px; font-weight: 700; line-height: 1; }
-    .metric-label {
-        font-size: 12px; color: #495057; font-weight: 600;
-        margin-top: 4px; text-transform: uppercase; letter-spacing: 0.05em;
-    }
-
-    .activity-row {
-        display: flex; align-items: center; justify-content: space-between;
-        padding: 12px 0; border-bottom: 1px solid #DEE2E6;
-    }
-    .activity-row:last-child { border-bottom: none; }
-    .activity-dot {
-        width: 9px; height: 9px; border-radius: 50%;
-        flex-shrink: 0; margin-right: 12px;
-    }
-    .activity-name { font-size: 14px; font-weight: 600; color: #212529; }
-    .activity-sub  { font-size: 12px; color: #495057; margin-top: 2px; font-weight: 500; }
-
-    .badge {
-        display: inline-block; padding: 3px 12px; border-radius: 20px;
-        font-size: 11px; font-weight: 600; letter-spacing: 0.03em;
-    }
-    .badge-shortlist { background: #d4edda; color: #28A745; }
-    .badge-review    { background: #fff3cd; color: #FFC107; }
-    .badge-reject    { background: #f8d7da; color: #DC3545; }
-    .badge-pending   { background: #e9ecef; color: #495057; }
-
-    .score-bar-bg {
-        background: #DEE2E6; border-radius: 99px;
-        height: 6px; margin-top: 4px;
-    }
-    .score-bar-fill {
-        height: 6px; border-radius: 99px;
-        background: linear-gradient(90deg, #007BFF, #17A2B8);
-    }
-
-    .candidate-card {
-        background: #FFFFFF; border-radius: 16px; padding: 1.25rem;
-        border: 1px solid #DEE2E6; margin-bottom: 10px; transition: all 0.2s;
-    }
-    .candidate-card:hover {
-        border-color: #007BFF;
-        box-shadow: 0 4px 20px rgba(0, 123, 255, 0.15);
-    }
-
-    .form-card {
-        background: #FFFFFF; border-radius: 16px;
-        padding: 1.5rem; border: 1px solid #DEE2E6; margin-bottom: 16px;
-    }
-
-    .job-card {
-        background: #FFFFFF; border-radius: 12px; padding: 1rem 1.25rem;
-        border: 1.5px solid #DEE2E6; margin-bottom: 8px;
-    }
-
-    .section-header {
-        font-size: 18px; font-weight: 700;
-        color: #0F2A4D; margin-bottom: 4px;
-    }
-    .section-sub {
-        font-size: 13px; color: #495057; margin-bottom: 20px; font-weight: 500;
-    }
-
-    div[data-testid="stExpander"] {
-        background: #FFFFFF; border-radius: 12px;
-        border: 1px solid #DEE2E6; margin-bottom: 8px;
-    }
-    div[data-testid="stExpander"] * { color: #212529 !important; }
-
+    .metric-card,
+    .candidate-card,
+    .form-card,
+    .job-card,
+    div[data-testid="stExpander"],
     .info-pill {
-        background: #F8F9FA; border-radius: 10px; padding: 10px 16px;
-        font-size: 13px; color: #495057; margin: 12px 0;
-        border: 1px solid #DEE2E6; font-weight: 500;
+        background: #FFFFFF;
+        border-radius: 16px;
+        padding: 1.25rem;
+        border: 1px solid #DEE2E6;
+        box-shadow: 0 8px 16px rgba(0, 0, 0, 0.06);
     }
 
-    .danger-btn > button {
-        background: #f8d7da !important; color: #DC3545 !important;
-        border: 1px solid #f5c6cb !important;
-    }
-    .danger-btn > button:hover {
-        background: #f5c6cb !important;
-    }
+    .metric-number { font-size: 32px; font-weight: 700; line-height: 1; color: #0F2A4D; }
+    .metric-label { font-size: 12px; color: #495057; font-weight: 600; margin-top: 4px; text-transform: uppercase; letter-spacing: 0.05em; }
+    .section-header { font-size: 18px; font-weight: 700; color: #0F2A4D; margin-bottom: 4px; }
+    .section-sub { font-size: 13px; color: #495057; margin-bottom: 20px; font-weight: 500; }
+
+    .activity-row { display: flex; align-items: center; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid #DEE2E6; }
+    .activity-row:last-child { border-bottom: none; }
+    .activity-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; margin-right: 12px; }
+    .activity-name { font-size: 14px; font-weight: 600; color: #212529; }
+    .activity-sub { font-size: 12px; color: #495057; margin-top: 2px; font-weight: 500; }
+
+    .badge-shortlist { background: #D4EDDA; color: #28A745; }
+    .badge-review { background: #FFF3CD; color: #FFC107; }
+    .badge-reject { background: #F8D7DA; color: #DC2626; }
+    .badge-pending { background: #D1ECF1; color: #17A2B8; }
+
+    .danger-btn > button { background: #f8d7da !important; color: #DC2626 !important; border: 1px solid #f5c6cb !important; }
+    .danger-btn > button:hover { background: #f5c6cb !important; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -213,9 +193,9 @@ def delete_candidate(candidate_id: int):
 with st.sidebar:
     st.markdown("""
         <div style='text-align:center; padding:1rem 0 1.5rem;'>
-            <div style='font-size:36px; font-weight:700; color:#1f2937;'>HireIQ</div>
-            <div style='font-size:22px; font-weight:700; margin-top:8px;'>HireIQ</div>
-            <div style='font-size:12px; opacity:0.7; margin-top:4px;'>Smart Hiring Pipeline</div>
+            <div style='font-size:36px; font-weight:700; color:#0F2A4D;'>HireIQ</div>
+            <div style='font-size:22px; font-weight:700; margin-top:8px; color:#0F2A4D;'>HireIQ</div>
+            <div style='font-size:12px; opacity:0.7; margin-top:4px; color:#212529;'>Smart Hiring Pipeline</div>
         </div>
     """, unsafe_allow_html=True)
 
@@ -231,18 +211,18 @@ with st.sidebar:
     st.markdown(f"""
         <div style='padding:0 0.5rem;'>
             <div style='font-size:11px; opacity:0.7; text-transform:uppercase;
-                        letter-spacing:0.08em; margin-bottom:14px;'>Pipeline summary</div>
+                        letter-spacing:0.08em; margin-bottom:14px; color:#212529;'>Pipeline summary</div>
             <div style='display:flex; justify-content:space-between; margin-bottom:10px;'>
-                <span style='font-size:13px;'>Shortlisted</span>
-                <span style='font-weight:700; color:#86efac;'>{shortlisted}</span>
+                <span style='font-size:13px; color:#212529;'>Shortlisted</span>
+                <span style='font-weight:700; color:#28A745;'>{shortlisted}</span>
             </div>
             <div style='display:flex; justify-content:space-between; margin-bottom:10px;'>
-                <span style='font-size:13px;'>Under review</span>
-                <span style='font-weight:700; color:#fde68a;'>{review}</span>
+                <span style='font-size:13px; color:#212529;'>Under review</span>
+                <span style='font-weight:700; color:#FFC107;'>{review}</span>
             </div>
             <div style='display:flex; justify-content:space-between;'>
-                <span style='font-size:13px;'>Rejected</span>
-                <span style='font-weight:700; color:#fca5a5;'>{rejected}</span>
+                <span style='font-size:13px; color:#212529;'>Rejected</span>
+                <span style='font-weight:700; color:#DC3545;'>{rejected}</span>
             </div>
         </div>
     """, unsafe_allow_html=True)
@@ -252,11 +232,11 @@ with st.sidebar:
     st.markdown(f"""
         <div style='padding:0 0.5rem;'>
             <div style='font-size:11px; opacity:0.7; text-transform:uppercase;
-                        letter-spacing:0.08em; margin-bottom:12px;'>Active jobs</div>
+                        letter-spacing:0.08em; margin-bottom:12px; color:#212529;'>Active jobs</div>
             {''.join([
-                f"<div style='font-size:13px; margin-bottom:6px; opacity:0.9;'>• {j['title']}</div>"
+                f"<div style='font-size:13px; margin-bottom:6px; opacity:0.9; color:#212529;'>• {j['title']}</div>"
                 for j in jobs
-            ]) or "<div style='font-size:13px; opacity:0.6;'>No jobs yet</div>"}
+            ]) or "<div style='font-size:13px; opacity:0.6; color:#495057;'>No jobs yet</div>"}
         </div>
     """, unsafe_allow_html=True)
 
@@ -277,7 +257,7 @@ with st.sidebar:
 
     st.markdown("""
         <div style='padding:0 0.5rem; font-size:11px; opacity:0.5;
-                    text-align:center; margin-top:16px;'>
+                    text-align:center; margin-top:16px; color:#212529;'>
             Powered by Groq + Llama 3.3
         </div>
     """, unsafe_allow_html=True)
@@ -285,10 +265,10 @@ with st.sidebar:
 # ── Page header ───────────────────────────────────────────
 st.markdown("""
     <div style='margin-bottom:24px;'>
-        <h1 style='font-size:28px; font-weight:700; color:#1f2937; margin:0;'>
+        <h1 style='font-size:28px; font-weight:700; color:#0F2A4D; margin:0;'>
             Hiring Pipeline
         </h1>
-        <p style='color:#9ca3af; font-size:14px; margin:4px 0 0;'>
+        <p style='color:#495057; font-size:14px; margin:4px 0 0;'>
             Autonomous resume screening, scoring and scheduling
         </p>
     </div>
@@ -399,7 +379,48 @@ with tab1:
             df = pd.DataFrame(scored)[["name", "score"]]
             df.columns = ["Candidate", "Score"]
             df = df.sort_values("Score", ascending=False)
-            st.bar_chart(df.set_index("Candidate")["Score"])
+            
+            fig = px.bar(
+                df,
+                x="Candidate",
+                y="Score",
+                title="Candidate Scores Overview",
+                labels={"Score": "Score (0-100)", "Candidate": "Candidate Name"},
+                color="Score",
+                color_continuous_scale=["#DC3545", "#FFC107", "#28A745"],
+                range_color=[0, 100]
+            )
+            
+            fig.update_layout(
+                plot_bgcolor="#FFFFFF",
+                paper_bgcolor="#FFFFFF",
+                font=dict(family="Inter, sans-serif", size=12, color="#212529"),
+                xaxis=dict(
+                    showgrid=True,
+                    gridwidth=1,
+                    gridcolor="#DEE2E6",
+                    title_font=dict(size=14, color="#0F2A4D"),
+                    tickfont=dict(size=11, color="#495057")
+                ),
+                yaxis=dict(
+                    showgrid=True,
+                    gridwidth=1,
+                    gridcolor="#DEE2E6",
+                    range=[0, 100],
+                    title_font=dict(size=14, color="#0F2A4D"),
+                    tickfont=dict(size=11, color="#495057")
+                ),
+                hovermode="x unified",
+                height=400,
+                margin=dict(l=60, r=20, t=60, b=80)
+            )
+            
+            fig.update_traces(
+                hovertemplate="<b>%{x}</b><br>Score: %{y}/100<extra></extra>",
+                marker=dict(line=dict(color="#0F2A4D", width=0.5))
+            )
+            
+            st.plotly_chart(fig, use_container_width=True)
 
 # ══════════════════════════════════════════════════════════
 # TAB 2 — Post a Job
@@ -538,6 +559,12 @@ with tab3:
             key="job_search"
         )
 
+        resume_search_keyword = st.text_input(
+            "Resume keyword or phrase",
+            placeholder="Type text to check inside uploaded resumes (e.g., SQL, React, AWS)",
+            key="resume_search_keyword"
+        )
+
         if search_query:
             matched = [t for t in job_titles if search_query.lower() in t.lower()]
             if matched:
@@ -630,6 +657,16 @@ with tab3:
                         email_display = result.get('email') or 'No email'
                         score_display = result.get('score') or 0
                         
+                        # Search keyword in resume text
+                        keyword_result_html = ""
+                        resume_text = (result.get('raw_text') or '').lower()
+                        keyword = resume_search_keyword.strip().lower() if resume_search_keyword else ''
+                        if keyword:
+                            if keyword in resume_text:
+                                keyword_result_html = f"<div style='background:#e6ffed; border-radius:8px; padding:10px; color:#065f46; border:1px solid #a7f3d0; margin-top:8px;'>Keyword '{resume_search_keyword}' was found in resume.</div>"
+                            else:
+                                keyword_result_html = f"<div style='background:#fff4e5; border-radius:8px; padding:10px; color:#92400e; border:1px solid #fde68a; margin-top:8px;'>Keyword '{resume_search_keyword}' not found in resume.</div>"
+
                         # Show warning if there are red flags
                         red_flags_html = ""
                         if result.get('red_flags'):
@@ -690,6 +727,7 @@ with tab3:
                                     </div>
                                 </div>
                                 {red_flags_html}
+                                {keyword_result_html}
                             </div>
                         """, unsafe_allow_html=True)
 
