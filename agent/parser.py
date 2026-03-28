@@ -14,10 +14,14 @@ client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 
 def ocr_image_with_tesseract(image: Image.Image) -> str:
     """Use Tesseract OCR directly via subprocess."""
-    tesseract_path = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
+    import platform
     
-    if not os.path.exists(tesseract_path):
-        return ""
+    # Determine correct tesseract path based on OS
+    if platform.system() == "Windows":
+        tesseract_path = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
+    else:
+        # Linux/Streamlit Cloud - try standard paths
+        tesseract_path = 'tesseract'  # Will use PATH environment variable
     
     try:
         # Save image to temp file
@@ -34,9 +38,12 @@ def ocr_image_with_tesseract(image: Image.Image) -> str:
         )
         
         # Clean up temp file
-        os.unlink(tmp_path)
+        try:
+            os.unlink(tmp_path)
+        except:
+            pass
         
-        if result.returncode == 0:
+        if result.returncode == 0 and result.stdout.strip():
             return result.stdout.strip()
         else:
             return ""
