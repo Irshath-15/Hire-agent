@@ -21,7 +21,10 @@ from db.seed import seed_default_jobs
 from sqlmodel import Session, select
 
 create_db()
-seed_default_jobs()
+try:
+    seed_default_jobs()
+except Exception as e:
+    print(f"Note: Could not seed jobs (may already exist): {e}")
 
 st.set_page_config(
     page_title="HireIQ — Smart Hiring Pipeline",
@@ -188,22 +191,28 @@ st.markdown("""
 
 # ── Helpers ───────────────────────────────────────────────
 def clear_all_candidates():
-    with Session(engine) as session:
-        for d in session.query(Decision).all():
-            session.delete(d)
-        for c in session.query(Candidate).all():
-            session.delete(c)
-        session.commit()
+    try:
+        with Session(engine) as session:
+            for d in session.query(Decision).all():
+                session.delete(d)
+            for c in session.query(Candidate).all():
+                session.delete(c)
+            session.commit()
+    except Exception as e:
+        st.error(f"Error clearing candidates: {str(e)}")
 
 def clear_all_jobs():
-    with Session(engine) as session:
-        for d in session.query(Decision).all():
-            session.delete(d)
-        for c in session.query(Candidate).all():
-            session.delete(c)
-        for j in session.query(JobDescription).all():
-            session.delete(j)
-        session.commit()
+    try:
+        with Session(engine) as session:
+            for d in session.query(Decision).all():
+                session.delete(d)
+            for c in session.query(Candidate).all():
+                session.delete(c)
+            for j in session.query(JobDescription).all():
+                session.delete(j)
+            session.commit()
+    except Exception as e:
+        st.error(f"Error clearing data: {str(e)}")
 
 def delete_job(job_id: int):
     with Session(engine) as session:
