@@ -45,7 +45,7 @@ def ocr_image_with_tesseract(image: Image.Image) -> str:
 
 
 def extract_text_from_pdf(file_path: str) -> tuple:
-    """Extract text from PDF. Handles both searchable and image-based PDFs."""
+    """Extract text from PDF. Handles both searchable and image-based PDFs with Tesseract OCR."""
     doc = fitz.open(file_path)
     text = ""
     image_based = False
@@ -58,11 +58,32 @@ def extract_text_from_pdf(file_path: str) -> tuple:
             text += page_text + "\n"
             has_searchable_content = True
     
-    # If no searchable text found, mark as image-based
+    # If no searchable text found, try OCR on rendered images
     if not has_searchable_content:
         image_based = True
-        text = "[IMAGE-BASED PDF] This is a scanned PDF. Please upload a searchable/text-based PDF instead. " \
-               "You can convert scanned PDFs using: https://www.ilovepdf.com/ocr or similar tools."
+        
+        try:
+            for page_num, page in enumerate(doc):
+                try:
+                    # Render page to image using fitz
+                    pix = page.get_pixmap(matrix=fitz.Matrix(2, 2))
+                    img_data = pix.tobytes("ppm")
+                    img = Image.open(io.BytesIO(img_data))
+                    
+                    # OCR the image using Tesseract
+                    ocr_text = ocr_image_with_tesseract(img)
+                    if ocr_text.strip():
+                        text += ocr_text + "\n"
+                except Exception:
+                    continue
+                    
+        except Exception as e:
+            # Fallback message if OCR fails
+            text = "[OCR-FAILED] Could not process image-based PDF with Tesseract OCR. Please upload a searchable PDF instead."
+        
+        # If still no text extracted
+        if image_based and not text:
+            text = "[IMAGE-BASED PDF] Could not extract text using OCR. Please upload a searchable/text-based PDF instead."
     
     return text.strip(), image_based
 

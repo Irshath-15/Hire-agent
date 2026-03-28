@@ -736,20 +736,23 @@ with tab3:
                         email_display = result.get('email') or 'No email'
                         score_display = result.get('score') or 0
                         
-                        # Check if it's an image-based PDF
+                        # Check if it's an image-based PDF that couldn't be processed
                         resume_text = (result.get('raw_text') or '').lower()
-                        if "[image-based pdf]" in resume_text:
+                        if "[image-based pdf]" in resume_text or "[ocr-failed]" in resume_text:
                             st.warning(f"""
-                            ⚠️ **Image-Based PDF Detected**
+                            ⚠️ **Could Not Extract Text from PDF**
                             
                             **File:** {file.name}
                             
-                            This appears to be a scanned PDF with no searchable text. The system cannot extract candidate information from image-based PDFs.
+                            The system tried to extract text but was unsuccessful. This could be due to:
+                            - Scanned/image-based PDF without OCR conversion
+                            - Encrypted or protected PDF
+                            - PDF with complex formatting
                             
-                            **Solution:** Please upload a searchable/text-based PDF instead. You can convert scanned PDFs using:
-                            - [iLovePDF OCR](https://www.ilovepdf.com/ocr)
-                            - [PDF.io](https://pdf.io/ocr)
-                            - Or export from your document as "Save as PDF"
+                            **Solutions:**
+                            1. Convert scanned PDF to searchable format: [iLovePDF OCR](https://www.ilovepdf.com/ocr)
+                            2. Export original document as "Save as PDF"
+                            3. Use PDF with copy-paste enabled
                             """)
                             continue
                         
