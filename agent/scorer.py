@@ -62,38 +62,44 @@ Candidate Profile:
         }
 
 def draft_rejection_email(candidate_name: str, job_title: str) -> str:
-    prompt = f"""Write a short, polite and professional rejection email for a job applicant.
+    """Generate a professional rejection email."""
+    email_body = f"""Subject: Update on Your Application for {job_title}
 
-Candidate name: {candidate_name}
-Job title: {job_title}
+Dear {candidate_name},
 
-Keep it warm, under 100 words, no placeholder brackets, ready to send as-is."""
+Thank you for submitting your application for the {job_title} position.
 
-    response = client.chat.completions.create(
-        model="llama-3.3-70b-versatile",
-        max_tokens=300,
-        messages=[{"role": "user", "content": prompt}]
-    )
+After careful consideration, we regret to inform you that you have not been selected for this role at this time.
 
-    return response.choices[0].message.content.strip()
+We appreciate the time and effort you invested in your application and encourage you to apply for future openings.
+
+Wishing you the very best in your career endeavors.
+
+Best regards,
+HireIQ Recruitment Team"""
+    
+    return email_body
 
 def draft_interview_email(candidate_name: str, job_title: str,
                            interview_date: str, interview_time: str,
                            meet_link: str) -> str:
-    prompt = f"""Write a short, professional interview confirmation email.
+    """Generate a professional interview invitation email."""
+    email_body = f"""Subject: Interview Invitation – {job_title}
 
-Candidate name: {candidate_name}
-Job title: {job_title}
-Interview date: {interview_date}
-Interview time: {interview_time}
-Google Meet link: {meet_link}
+Dear {candidate_name},
 
-Keep it friendly, under 120 words, no placeholder brackets, ready to send as-is."""
+Congratulations! Your application for the {job_title} position has been shortlisted.
 
-    response = client.chat.completions.create(
-        model="llama-3.3-70b-versatile",
-        max_tokens=300,
-        messages=[{"role": "user", "content": prompt}]
-    )
+Your interview has been scheduled as follows:
+- Date: {interview_date}
+- Time: {interview_time}
+- Mode / Venue: {meet_link}
 
-    return response.choices[0].message.content.strip()
+Please confirm your availability by accepting the calendar invite. If you are unable to attend, please reach out to us to discuss alternate slots.
+
+We look forward to speaking with you.
+
+Best regards,
+HireIQ Recruitment Team"""
+
+    return email_body
