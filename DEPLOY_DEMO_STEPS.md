@@ -91,15 +91,15 @@ You'll see:
 ### 4.3 Copy and paste this (EXACTLY):
 
 ```
-GROQ_API_KEY = "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"
+GROQ_API_KEY = "your_groq_api_key_here"
 SMTP_HOST = "smtp.gmail.com"
 SMTP_PORT = 587
-SMTP_USER = "hireagent64@gmail.com"
-SMTP_PASSWORD = "dtkh wmox xhqe vwuw"
-HR_EMAIL_FROM = "hireagent64@gmail.com"
+SMTP_USER = "your_email@gmail.com"
+SMTP_PASSWORD = "your_app_password_here"
+HR_EMAIL_FROM = "your_email@gmail.com"
 ```
 
-(Get these values from your `.env` file)
+(Get these values from your `.env` file - copy the actual values, not these placeholders)
 
 ### 4.4 Click "Save"
 
