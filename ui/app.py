@@ -707,6 +707,11 @@ with tab3:
                         </div>
                     """, unsafe_allow_html=True)
 
+                    # Create uploads directory if it doesn't exist
+                    upload_dir = "uploads"
+                    if not os.path.exists(upload_dir):
+                        os.makedirs(upload_dir, exist_ok=True)
+
                     save_path = os.path.join("uploads", file.name)
                     with open(save_path, "wb") as f:
                         f.write(file.getbuffer())
