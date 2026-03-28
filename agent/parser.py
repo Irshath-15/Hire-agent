@@ -2,7 +2,6 @@ import fitz
 import docx
 import os
 import json
-import subprocess
 import tempfile
 from groq import Groq
 from dotenv import load_dotenv
@@ -13,41 +12,15 @@ load_dotenv()
 client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 
 def ocr_image_with_tesseract(image: Image.Image) -> str:
-    """Use Tesseract OCR directly via subprocess."""
-    import platform
-    
-    # Determine correct tesseract path based on OS
-    if platform.system() == "Windows":
-        tesseract_path = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
-    else:
-        # Linux/Streamlit Cloud - try standard paths
-        tesseract_path = 'tesseract'  # Will use PATH environment variable
-    
+    """Use Tesseract OCR via pytesseract library."""
     try:
-        # Save image to temp file
-        with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as tmp:
-            image.save(tmp.name)
-            tmp_path = tmp.name
-        
-        # Run tesseract via subprocess
-        result = subprocess.run(
-            [tesseract_path, tmp_path, 'stdout'],
-            capture_output=True,
-            text=True,
-            timeout=30
-        )
-        
-        # Clean up temp file
-        try:
-            os.unlink(tmp_path)
-        except:
-            pass
-        
-        if result.returncode == 0 and result.stdout.strip():
-            return result.stdout.strip()
-        else:
-            return ""
+        import pytesseract
+        # pytesseract.pytesseract.pytesseract_cmd can be set if needed
+        # On Linux (Streamlit Cloud), tesseract should be in PATH
+        result = pytesseract.image_to_string(image)
+        return result.strip()
     except Exception as e:
+        # If pytesseract or tesseract not available, return empty
         return ""
 
 
@@ -77,7 +50,7 @@ def extract_text_from_pdf(file_path: str) -> tuple:
                     img_data = pix.tobytes("ppm")
                     img = Image.open(io.BytesIO(img_data))
                     
-                    # OCR the image using Tesseract
+                    # OCR the image using Tesseract via pytesseract
                     ocr_text = ocr_image_with_tesseract(img)
                     if ocr_text.strip():
                         text += ocr_text + "\n"
@@ -86,10 +59,10 @@ def extract_text_from_pdf(file_path: str) -> tuple:
                     
         except Exception as e:
             # Fallback message if OCR fails
-            text = "[OCR-FAILED] Could not process image-based PDF with Tesseract OCR. Please upload a searchable PDF instead."
+            text = ""
         
         # If still no text extracted
-        if image_based and not text:
+        if image_based and not text.strip():
             text = "[IMAGE-BASED PDF] Could not extract text using OCR. Please upload a searchable/text-based PDF instead."
     
     return text.strip(), image_based
