@@ -736,9 +736,25 @@ with tab3:
                         email_display = result.get('email') or 'No email'
                         score_display = result.get('score') or 0
                         
+                        # Check if it's an image-based PDF
+                        resume_text = (result.get('raw_text') or '').lower()
+                        if "[image-based pdf]" in resume_text:
+                            st.warning(f"""
+                            ⚠️ **Image-Based PDF Detected**
+                            
+                            **File:** {file.name}
+                            
+                            This appears to be a scanned PDF with no searchable text. The system cannot extract candidate information from image-based PDFs.
+                            
+                            **Solution:** Please upload a searchable/text-based PDF instead. You can convert scanned PDFs using:
+                            - [iLovePDF OCR](https://www.ilovepdf.com/ocr)
+                            - [PDF.io](https://pdf.io/ocr)
+                            - Or export from your document as "Save as PDF"
+                            """)
+                            continue
+                        
                         # Search keyword in resume text
                         keyword_result_html = ""
-                        resume_text = (result.get('raw_text') or '').lower()
                         keyword = resume_search_keyword.strip().lower() if resume_search_keyword else ''
                         if keyword:
                             if keyword in resume_text:

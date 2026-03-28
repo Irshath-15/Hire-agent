@@ -58,33 +58,11 @@ def extract_text_from_pdf(file_path: str) -> tuple:
             text += page_text + "\n"
             has_searchable_content = True
     
-    # If no searchable text found, try OCR on rendered images
+    # If no searchable text found, mark as image-based
     if not has_searchable_content:
         image_based = True
-        
-        try:
-            for page_num, page in enumerate(doc):
-                try:
-                    # Render page to image using fitz
-                    pix = page.get_pixmap(matrix=fitz.Matrix(2, 2))
-                    img_data = pix.tobytes("ppm")
-                    img = Image.open(io.BytesIO(img_data))
-                    
-                    # OCR the image using Tesseract
-                    ocr_text = ocr_image_with_tesseract(img)
-                    if ocr_text.strip():
-                        text += ocr_text + "\n"
-                except Exception:
-                    continue
-                    
-        except Exception as e:
-            text = "[Image-based PDF] Could not process with OCR. Tesseract may not be installed correctly. " \
-                   "Visit: https://github.com/UB-Mannheim/tesseract/wiki and install Tesseract-OCR."
-        
-        # If still no text extracted
-        if image_based and not text:
-            text = "[Image-based PDF] Cannot extract text. Tesseract-OCR may not be properly installed. " \
-                   "Please install from: https://github.com/UB-Mannheim/tesseract/wiki or upload a searchable PDF."
+        text = "[IMAGE-BASED PDF] This is a scanned PDF. Please upload a searchable/text-based PDF instead. " \
+               "You can convert scanned PDFs using: https://www.ilovepdf.com/ocr or similar tools."
     
     return text.strip(), image_based
 
