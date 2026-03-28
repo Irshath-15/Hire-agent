@@ -91,7 +91,7 @@ You'll see:
 ### 4.3 Copy and paste this (EXACTLY):
 
 ```
-GROQ_API_KEY = "your_groq_api_key_here"
+GROQ_API_KEY=your_groq_key_here
 SMTP_HOST = "smtp.gmail.com"
 SMTP_PORT = 587
 SMTP_USER = "your_email@gmail.com"
