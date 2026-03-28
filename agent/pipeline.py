@@ -1,12 +1,14 @@
 import os
 import sys
+import time
+from datetime import datetime
 from sqlmodel import Session, select
 from db.database import engine, create_db, save_memory_record, get_memory_records
 from db.models import Candidate, JobDescription, Decision
 from agent.parser import parse_resume
 from agent.scorer import score_candidate, draft_rejection_email, draft_interview_email
 from agent.semantic import similarity, embed_text
-from agent.actions import send_email, schedule_interview
+from agent.actions import send_email, schedule_interview, check_rsvp_responses, auto_reschedule, retry_email
 from agent.learning import learning_loop
 from dotenv import load_dotenv
 
@@ -14,8 +16,21 @@ load_dotenv()
 
 
 def trigger_agent_on_upload(job_id: int, file_path: str) -> dict:
-    """Entry point for HR upload trigger."""
+    """Entry point for HR upload trigger (Google Drive/Gmail/ATS Webhook)."""
     return run_hiring_pipeline(job_id, file_path)
+
+
+def webhook_trigger(job_id: int, resume_urls: list, jd_url: str = None) -> dict:
+    """Webhook trigger for external integrations (Google Drive, Gmail, ATS)."""
+    # Download files from URLs if needed
+    # For now, assume files are already downloaded to file_path
+    # In production, implement download logic here
+    results = []
+    for resume_url in resume_urls:
+        # Simulate processing each resume
+        result = run_hiring_pipeline(job_id, resume_url)  # Assuming resume_url is local path
+        results.append(result)
+    return {'batch_processed': len(results), 'results': results}
 
 
 def ai_brain(parsed_resume: dict) -> dict:
@@ -92,6 +107,23 @@ def action_engine(candidate: Candidate, job: JobDescription, score_data: dict) -
     return result
 
 
+def auto_reschedule_with_retry(candidate_email: str, job_title: str, interview_date: str, interview_time: str, max_retries: int = 3) -> dict:
+    """Auto-reschedule interview with retry logic if candidate declines or no-shows."""
+    for attempt in range(max_retries):
+        reschedule_result = auto_reschedule(candidate_email, job_title, interview_date, interview_time)
+        if reschedule_result.get('rescheduled'):
+            # Send new invitation email
+            new_date = reschedule_result['new_date']
+            new_time = reschedule_result['new_time']
+            email_body = draft_interview_email('Candidate', job_title, new_date, new_time, 'TBD')
+            retry_email(candidate_email, f"Rescheduled Interview: {job_title}", email_body)
+            return reschedule_result
+        # Wait before checking again
+        time.sleep(3600 * (attempt + 1))  # Wait 1, 2, 3 hours
+
+    return {'rescheduled': False, 'reason': f'No response after {max_retries} checks'}
+
+
 def dashboard_update(candidate: Candidate) -> dict:
     return {
         'candidate_id': candidate.id,
@@ -119,12 +151,22 @@ def run_hiring_pipeline(job_id: int, file_path: str) -> dict:
         if not job:
             raise ValueError(f"Job ID {job_id} not found")
 
+        # Step 1: Resume Parser + JD Embedding (Affinda/Unstructured + OpenAI Embeddings)
         parsed = parse_resume(file_path)
+        jd_embedding = embed_text(job.description)  # Embed JD
+        resume_embedding = embed_text(parsed.get('raw_text', ''))
+
+        # Step 2: AI Brain (evaluate skills and experience)
         brain_data = ai_brain(parsed)
+
+        # Step 3: Semantic Matching + Scoring
         semantic_data = semantic_match(job.description, parsed.get('raw_text', ''))
         score_data = score_and_reason(parsed, semantic_data, job.description)
+
+        # Step 4: Decision Engine
         final_decision = decision_engine(score_data, parsed)
 
+        # Create/update candidate record
         candidate = Candidate(
             name=parsed.get('name') or 'Unknown',
             email=parsed.get('email') or 'unknown@email.com',
@@ -147,6 +189,7 @@ def run_hiring_pipeline(job_id: int, file_path: str) -> dict:
         session.commit()
         session.refresh(candidate)
 
+        # Record decision
         decision = Decision(
             candidate_id=candidate.id,
             original_decision=final_decision,
@@ -155,25 +198,63 @@ def run_hiring_pipeline(job_id: int, file_path: str) -> dict:
         session.add(decision)
         session.commit()
 
+        # Step 5: Email Automation + RSVP Handling
         action_results = action_engine(candidate, job, score_data)
+
+        # Persist scheduling + email status into candidate record
+        if action_results.get('schedule'):
+            schedule_info = action_results['schedule']
+            candidate.scheduled_at = datetime.utcnow()
+            candidate.calendar_link = schedule_info.get('calendar_link')
+
+        if action_results.get('email'):
+            email_info = action_results['email']
+            candidate.email_status = email_info.get('status')
+            candidate.email_error = email_info.get('error') or email_info.get('message')
+
+        session.add(candidate)
+        session.commit()
+        session.refresh(candidate)
+
+        # If shortlisted, monitor RSVP and auto-reschedule if needed
+        if candidate.status == 'SHORTLIST' and action_results.get('schedule'):
+            schedule_info = action_results['schedule']
+            # Check for RSVP responses and auto-reschedule
+            reschedule_result = auto_reschedule_with_retry(
+                candidate.email, job.title,
+                schedule_info['interview_date'], schedule_info['interview_time']
+            )
+            if reschedule_result.get('rescheduled'):
+                # Update schedule info
+                action_results['schedule'].update(reschedule_result)
+                candidate.calendar_link = action_results['schedule'].get('calendar_link', candidate.calendar_link)
+                session.add(candidate)
+                session.commit()
+                session.refresh(candidate)
+
+        # Step 6: Logging & Memory Store
         memory_summary = {
             'job': job.title,
             'candidate_name': candidate.name,
             'decision': final_decision,
             'score': score_data.get('overall_score'),
-            'semantic_similarity': semantic_data.get('semantic_similarity')
+            'semantic_similarity': semantic_data.get('semantic_similarity'),
+            'jd_embedding': jd_embedding,
+            'resume_embedding': resume_embedding
         }
 
         memory_results = memory_store(
             candidate.id,
             job.id,
             summary=str(memory_summary),
-            embedding=embed_text(parsed.get('raw_text', '')),
+            embedding=resume_embedding,
             source='run_hiring_pipeline'
         )
 
+        # Step 7: Learning Loop (update weights nightly, compute Precision@N)
         learning_info = learning_loop()
 
+        # Report generation
         extracted_text = parsed.get('raw_text', '') or ''
         is_scanned_image = extracted_text.startswith('[Image resume:')
 
@@ -248,6 +329,10 @@ def get_all_candidates() -> list:
                 'weaknesses': getattr(c, 'weaknesses', None),
                 'status': getattr(c, 'status', 'PENDING'),
                 'red_flags': getattr(c, 'red_flags', None),
+                'scheduled_at': getattr(c, 'scheduled_at', None),
+                'calendar_link': getattr(c, 'calendar_link', None),
+                'email_status': getattr(c, 'email_status', None),
+                'email_error': getattr(c, 'email_error', None),
                 'uploaded_at': str(getattr(c, 'uploaded_at', ''))
             }
             for c in candidates

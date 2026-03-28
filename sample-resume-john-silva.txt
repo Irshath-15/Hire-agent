@@ -1,0 +1,55 @@
+JOHN SILVA
+San Francisco, CA | (555) 123-4567 | john.silva@email.com | LinkedIn: linkedin.com/in/johnsilva
+
+PROFESSIONAL SUMMARY
+Results-driven Senior Software Engineer with 7+ years of experience in full-stack development, cloud architecture, and team leadership. Proven track record of delivering scalable applications serving millions of users. Expertise in Python, JavaScript, AWS, and modern DevOps practices.
+
+PROFESSIONAL EXPERIENCE
+
+Senior Software Engineer | TechCorp Solutions (San Francisco, CA)
+January 2022 – Present
+• Led migration of monolithic application to microservices architecture, reducing deployment time by 60%
+• Designed and implemented CI/CD pipelines using GitHub Actions and Docker, improving release frequency from monthly to weekly
+• Mentored 5 junior developers, resulting in 3 promotions within 18 months
+• Optimized database queries reducing API response time from 2s to 200ms, improving user experience significantly
+• Built real-time analytics dashboard using React and WebSocket integration, supporting 100K+ concurrent users
+
+Software Engineer | DataFlow Inc. (Mountain View, CA)
+June 2019 – December 2021
+• Developed Python backend services for data processing pipeline handling 10TB+ daily data ingestion
+• Implemented caching layer using Redis, reducing database load by 45%
+• Collaborated with ML team to integrate predictive models into production systems
+• Wrote comprehensive unit and integration tests achieving 85% code coverage
+• Participated in on-call rotation and reduced incident response time by 40%
+
+Junior Developer | StartupXYZ (Palo Alto, CA)
+July 2017 – May 2019
+• Built REST APIs using Flask and FastAPI serving millions of requests monthly
+• Implemented user authentication and authorization systems
+• Deployed applications on AWS using EC2, RDS, and S3
+• Contributed to open-source projects with 50+ merged pull requests
+
+TECHNICAL SKILLS
+Programming Languages: Python, JavaScript/Node.js, Java, SQL, TypeScript
+Web Frameworks: FastAPI, Flask, Express.js, React, Django
+Databases: PostgreSQL, MySQL, MongoDB, Redis
+Cloud & DevOps: AWS (EC2, RDS, S3, Lambda), Docker, Kubernetes, GitHub Actions, Jenkins
+Tools & Platforms: Git, Linux, Jira, DataDog, Grafana, Apache Kafka
+
+EDUCATION
+Bachelor of Science in Computer Science
+University of California, Berkeley | Graduated: May 2017
+GPA: 3.8/4.0 | Dean's List all semesters
+
+CERTIFICATIONS & AWARDS
+• AWS Certified Solutions Architect – Professional (2021)
+• Employee of the Year – TechCorp Solutions (2023)
+• Best Innovation Award – DataFlow Inc. (2020)
+
+PROJECTS & ACHIEVEMENTS
+• Led open-source project "PyTaskQueue" with 2.5K+ GitHub stars
+• Published article on microservices architecture in TechBlog (50K+ views)
+• Organized tech meetup series with 500+ monthly attendees
+• Contributed to company's transition to serverless architecture
+
+RED FLAGS: None - strong career progression

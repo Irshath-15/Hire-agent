@@ -8,3 +8,9 @@ sqlmodel
 python-dotenv
 pandas
 plotly
+openai
+sendgrid
+google-api-python-client
+google-auth
+google-auth-oauthlib
+pytesseract

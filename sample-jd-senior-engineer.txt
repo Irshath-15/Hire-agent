@@ -1,0 +1,57 @@
+JOB DESCRIPTION: Senior Software Engineer
+
+Company: TechCorp Solutions
+Location: San Francisco, CA (Hybrid)
+Job Level: Senior (7+ years)
+Salary: $180,000 - $220,000
+
+ABOUT THE ROLE
+We're looking for an experienced Senior Software Engineer to join our Platform Engineering team. You'll architect and build scalable systems that power our platform serving millions of users worldwide. This is a high-impact role where you'll mentor junior engineers, drive technical decisions, and own end-to-end project delivery.
+
+RESPONSIBILITIES
+• Design and architect microservices-based systems handling high-volume traffic
+• Lead technical design reviews and code quality initiatives
+• Mentor and develop junior engineers through pair programming and code reviews
+• Implement CI/CD pipelines and DevOps best practices
+• Optimize system performance and database queries for scale
+• Collaborate with product, design, and data teams on cross-functional projects
+• Participate in incident response and on-call rotation
+• Contribute to open-source initiatives
+• Build real-time features and analytics systems
+
+REQUIRED QUALIFICATIONS
+• 7+ years of professional software development experience
+• Strong proficiency in Python or Java
+• Experience with cloud platforms (AWS, GCP, or Azure)
+• Deep understanding of database design and SQL optimization
+• Experience with containerization (Docker, Kubernetes)
+• Knowledge of CI/CD practices and tools
+• Experience with microservices architecture
+• Strong communication and leadership skills
+• Bachelor's degree in Computer Science or equivalent
+
+PREFERRED QUALIFICATIONS
+• Experience with React or modern frontend frameworks
+• AWS certifications (Solutions Architect, Developer)
+• Experience with real-time systems and WebSockets
+• Open-source contributions
+• Experience with API design and REST/GraphQL
+• Knowledge of caching strategies (Redis, Memcached)
+• Familiarity with monitoring and observability tools (DataDog, Grafana)
+• Previous team mentoring or leadership experience
+
+WHY JOIN US
+• Work on high-impact projects serving millions of users
+• Competitive salary and comprehensive benefits
+• Professional development budget and training
+• Flexible work arrangement (hybrid/remote)
+• Collaborate with world-class engineering team
+• Career growth and promotion opportunities
+• Stock options and performance bonuses
+
+APPLICATION TIPS
+• Highlight your microservices architecture experience
+• Showcase any open-source contributions or side projects
+• Emphasize mentoring and team leadership impact
+• Show examples of performance optimization work
+• Demonstrate cloud platform expertise

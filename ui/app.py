@@ -12,8 +12,11 @@ from agent.pipeline import (
     get_all_jobs, override_decision
 )
 from agent.scorer import draft_interview_email
+from agent.actions import schedule_interview, send_email
 from db.database import create_db, engine
 from db.models import Candidate, JobDescription, Decision
+from sqlmodel import Session
+from datetime import datetime
 from db.seed import seed_default_jobs
 from sqlmodel import Session, select
 
@@ -33,30 +36,34 @@ st.markdown("""
 
     html, body, [class*="css"] {
         font-family: 'Inter', sans-serif;
-        color: #212529;
-        background: #F8F9FA;
+        color: #E9ECEF;
+        background: #0F1419;
+    }
+
+    [data-testid="stAppViewContainer"] {
+        background: linear-gradient(135deg, #0F1419 0%, #1a1f2e 100%);
     }
 
     section[data-testid="stSidebar"] {
-        background: #E9ECEF;
-        border-right: none;
-        color: #212529 !important;
+        background: #1a1f2e;
+        border-right: 1px solid #2d3748;
+        color: #E9ECEF !important;
     }
 
     section[data-testid="stSidebar"] .stSelectbox label,
-    section[data-testid="stSidebar"] .stTextInput label,
-    section[data-testid="stSidebar"] .stSelectbox div(data-testid="baseButton-secondary") {
-        color: #212529 !important;
+    section[data-testid="stSidebar"] .stTextInput label {
+        color: #B0B8C4 !important;
         font-size: 12px !important;
         font-weight: 500 !important;
     }
 
     .stTabs [data-baseweb="tab-list"] {
-        background: white;
+        background: #1a1f2e;
         border-radius: 12px;
         padding: 4px;
         gap: 4px;
-        border: 1px solid #DEE2E6;
+        border: 1px solid #4F46E5;
+        box-shadow: 0 0 12px rgba(79, 70, 229, 0.1);
     }
 
     .stTabs [data-baseweb="tab"] {
@@ -64,16 +71,16 @@ st.markdown("""
         padding: 8px 20px;
         font-weight: 500;
         font-size: 14px;
-        color: #495057;
+        color: #B0B8C4;
     }
 
     .stTabs [aria-selected="true"] {
-        background: #007BFF !important;
+        background: linear-gradient(135deg, #4F46E5 0%, #7C3AED 100%) !important;
         color: white !important;
     }
 
     .stButton > button {
-        background: #007BFF;
+        background: linear-gradient(135deg, #4F46E5 0%, #7C3AED 100%);
         color: white;
         border: none;
         border-radius: 8px;
@@ -84,36 +91,41 @@ st.markdown("""
     }
 
     .stButton > button:hover {
-        background: #0056D2;
+        background: linear-gradient(135deg, #4338CA 0%, #6D28D9 100%);
         transform: translateY(-1px);
+        box-shadow: 0 8px 16px rgba(79, 70, 229, 0.3);
     }
 
     .stButton > button.primary {
-        background: #0F2A4D;
+        background: #4F46E5;
     }
 
     .stAlert, .stNotification, .info-pill {
-        border-color: #DEE2E6;
+        border-color: #2d3748;
+        background-color: #1a1f2e;
+        color: #E9ECEF;
     }
 
     .stTextInput > div > div > input,
     .stTextArea > div > div > textarea,
-    .stSelectbox > div > div {
+    .stSelectbox > div > div,
+    .stMultiSelect > div > div {
         border-radius: 8px;
-        border: 1.5px solid #DEE2E6;
+        border: 1.5px solid #2d3748;
         font-size: 14px;
-        color: #212529;
+        color: #E9ECEF;
+        background-color: #0F1419;
     }
 
     .stTextInput > div > div > input::placeholder,
     .stTextArea > div > div > textarea::placeholder {
-        color: #495057;
+        color: #718096;
     }
 
     .stTextInput > div > div > input:focus,
     .stTextArea > div > div > textarea:focus {
-        border-color: #007BFF;
-        box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.15);
+        border-color: #4F46E5;
+        box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.15);
     }
 
     .metric-card,
@@ -122,31 +134,55 @@ st.markdown("""
     .job-card,
     div[data-testid="stExpander"],
     .info-pill {
-        background: #FFFFFF;
+        background: #1a1f2e;
         border-radius: 16px;
         padding: 1.25rem;
-        border: 1px solid #DEE2E6;
-        box-shadow: 0 8px 16px rgba(0, 0, 0, 0.06);
+        border: 1px solid #4F46E5;
+        box-shadow: 0 8px 16px rgba(79, 70, 229, 0.1), 0 0 20px rgba(79, 70, 229, 0.05);
     }
 
-    .metric-number { font-size: 32px; font-weight: 700; line-height: 1; color: #0F2A4D; }
-    .metric-label { font-size: 12px; color: #495057; font-weight: 600; margin-top: 4px; text-transform: uppercase; letter-spacing: 0.05em; }
-    .section-header { font-size: 18px; font-weight: 700; color: #0F2A4D; margin-bottom: 4px; }
-    .section-sub { font-size: 13px; color: #495057; margin-bottom: 20px; font-weight: 500; }
+    .metric-number { font-size: 48px; font-weight: 700; line-height: 1; color: #FFFFFF; }
+    .metric-label { font-size: 12px; color: #B0B8C4; font-weight: 600; margin-top: 4px; text-transform: uppercase; letter-spacing: 0.05em; }
+    .section-header { font-size: 18px; font-weight: 700; color: #FFFFFF; margin-bottom: 4px; }
+    .section-sub { font-size: 13px; color: #B0B8C4; margin-bottom: 20px; font-weight: 500; }
 
-    .activity-row { display: flex; align-items: center; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid #DEE2E6; }
+    .activity-row { display: flex; align-items: center; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid #2d3748; }
     .activity-row:last-child { border-bottom: none; }
     .activity-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; margin-right: 12px; }
-    .activity-name { font-size: 14px; font-weight: 600; color: #212529; }
-    .activity-sub { font-size: 12px; color: #495057; margin-top: 2px; font-weight: 500; }
+    .activity-name { font-size: 14px; font-weight: 600; color: #FFFFFF; }
+    .activity-sub { font-size: 12px; color: #B0B8C4; margin-top: 2px; font-weight: 500; }
 
-    .badge-shortlist { background: #D4EDDA; color: #28A745; }
-    .badge-review { background: #FFF3CD; color: #FFC107; }
-    .badge-reject { background: #F8D7DA; color: #DC2626; }
-    .badge-pending { background: #D1ECF1; color: #17A2B8; }
+    .badge-shortlist { background: #065f46; color: #10b981; }
+    .badge-review { background: #78350f; color: #f59e0b; }
+    .badge-reject { background: #7f1d1d; color: #ef4444; }
+    .badge-pending { background: #0c4a6e; color: #22d3ee; }
 
-    .danger-btn > button { background: #f8d7da !important; color: #DC2626 !important; border: 1px solid #f5c6cb !important; }
-    .danger-btn > button:hover { background: #f5c6cb !important; }
+    .danger-btn > button { background: #DC2626 !important; color: #FFFFFF !important; border: 1px solid #991b1b !important; font-weight: 600; }
+    .danger-btn > button:hover { background: #991b1b !important; box-shadow: 0 8px 16px rgba(220, 38, 38, 0.3); }
+    
+    .danger-expander {
+        border: 1.5px solid #DC2626 !important;
+        border-radius: 12px !important;
+        box-shadow: 0 0 16px rgba(220, 38, 38, 0.2) !important;
+    }
+    
+    .danger-expander-header {
+        color: #ef4444 !important;
+        font-weight: 600 !important;
+    }
+    
+    .stMultiSelect > div > div {
+        border-radius: 8px;
+        border: 1.5px solid #2d3748;
+        background-color: #0F1419;
+    }
+
+    .stMultiSelect label {
+        color: #E9ECEF !important;
+    }
+
+    .score-bar-bg { background: #2d3748; border-radius: 8px; height: 8px; overflow: hidden; }
+    .score-bar-fill { background: linear-gradient(90deg, #4F46E5 0%, #7C3AED 100%); height: 100%; transition: width 0.3s ease; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -193,9 +229,8 @@ def delete_candidate(candidate_id: int):
 with st.sidebar:
     st.markdown("""
         <div style='text-align:center; padding:1rem 0 1.5rem;'>
-            <div style='font-size:36px; font-weight:700; color:#0F2A4D;'>HireIQ</div>
-            <div style='font-size:22px; font-weight:700; margin-top:8px; color:#0F2A4D;'>HireIQ</div>
-            <div style='font-size:12px; opacity:0.7; margin-top:4px; color:#212529;'>Smart Hiring Pipeline</div>
+            <div style='font-size:36px; font-weight:700; color:#FFFFFF;'>HireIQ</div>
+            <div style='font-size:12px; opacity:0.8; margin-top:8px; color:#B0B8C4;'>Smart Hiring Pipeline</div>
         </div>
     """, unsafe_allow_html=True)
 
@@ -211,18 +246,18 @@ with st.sidebar:
     st.markdown(f"""
         <div style='padding:0 0.5rem;'>
             <div style='font-size:11px; opacity:0.7; text-transform:uppercase;
-                        letter-spacing:0.08em; margin-bottom:14px; color:#212529;'>Pipeline summary</div>
+                        letter-spacing:0.08em; margin-bottom:14px; color:#B0B8C4;'>Pipeline summary</div>
             <div style='display:flex; justify-content:space-between; margin-bottom:10px;'>
-                <span style='font-size:13px; color:#212529;'>Shortlisted</span>
-                <span style='font-weight:700; color:#28A745;'>{shortlisted}</span>
+                <span style='font-size:13px; color:#FFFFFF;'>Shortlisted</span>
+                <span style='font-weight:700; color:#10b981;'>{shortlisted}</span>
             </div>
             <div style='display:flex; justify-content:space-between; margin-bottom:10px;'>
-                <span style='font-size:13px; color:#212529;'>Under review</span>
-                <span style='font-weight:700; color:#FFC107;'>{review}</span>
+                <span style='font-size:13px; color:#FFFFFF;'>Under review</span>
+                <span style='font-weight:700; color:#f59e0b;'>{review}</span>
             </div>
             <div style='display:flex; justify-content:space-between;'>
-                <span style='font-size:13px; color:#212529;'>Rejected</span>
-                <span style='font-weight:700; color:#DC3545;'>{rejected}</span>
+                <span style='font-size:13px; color:#FFFFFF;'>Rejected</span>
+                <span style='font-weight:700; color:#ef4444;'>{rejected}</span>
             </div>
         </div>
     """, unsafe_allow_html=True)
@@ -232,17 +267,22 @@ with st.sidebar:
     st.markdown(f"""
         <div style='padding:0 0.5rem;'>
             <div style='font-size:11px; opacity:0.7; text-transform:uppercase;
-                        letter-spacing:0.08em; margin-bottom:12px; color:#212529;'>Active jobs</div>
+                        letter-spacing:0.08em; margin-bottom:12px; color:#B0B8C4;'>Active jobs</div>
             {''.join([
-                f"<div style='font-size:13px; margin-bottom:6px; opacity:0.9; color:#212529;'>• {j['title']}</div>"
+                f"<div style='font-size:13px; margin-bottom:6px; opacity:0.9; color:#FFFFFF;'>• {j['title']}</div>"
                 for j in jobs
-            ]) or "<div style='font-size:13px; opacity:0.6; color:#495057;'>No jobs yet</div>"}
+            ]) or "<div style='font-size:13px; opacity:0.6; color:#718096;'>No jobs yet</div>"}
         </div>
     """, unsafe_allow_html=True)
 
     st.markdown("---")
 
-    with st.expander("Danger zone"):
+    st.markdown("""
+        <div style='border: 1.5px solid #DC2626; border-radius: 12px; padding: 0.75rem; 
+                    background: rgba(220, 38, 38, 0.05); box-shadow: 0 0 16px rgba(220, 38, 38, 0.15);'>
+    """, unsafe_allow_html=True)
+    
+    with st.expander(" Danger zone", expanded=False):
         st.markdown("<div class='danger-btn'>", unsafe_allow_html=True)
         if st.button("Clear all candidates", use_container_width=True):
             clear_all_candidates()
@@ -256,8 +296,12 @@ with st.sidebar:
         st.markdown("</div>", unsafe_allow_html=True)
 
     st.markdown("""
+        </div>
+    """, unsafe_allow_html=True)
+
+    st.markdown("""
         <div style='padding:0 0.5rem; font-size:11px; opacity:0.5;
-                    text-align:center; margin-top:16px; color:#212529;'>
+                    text-align:center; margin-top:16px; color:#B0B8C4;'>
             Powered by Groq + Llama 3.3
         </div>
     """, unsafe_allow_html=True)
@@ -265,10 +309,10 @@ with st.sidebar:
 # ── Page header ───────────────────────────────────────────
 st.markdown("""
     <div style='margin-bottom:24px;'>
-        <h1 style='font-size:28px; font-weight:700; color:#0F2A4D; margin:0;'>
+        <h1 style='font-size:28px; font-weight:700; color:#FFFFFF; margin:0;'>
             Hiring Pipeline
         </h1>
-        <p style='color:#495057; font-size:14px; margin:4px 0 0;'>
+        <p style='color:#B0B8C4; font-size:14px; margin:4px 0 0;'>
             Autonomous resume screening, scoring and scheduling
         </p>
     </div>
@@ -277,14 +321,14 @@ st.markdown("""
 # ── Metric row ────────────────────────────────────────────
 mc1, mc2, mc3 = st.columns(3)
 for col, label, value, color in [
-    (mc1, "Shortlisted", shortlisted, "#065f46"),
-    (mc2, "Under review", review,      "#92400e"),
-    (mc3, "Rejected",     rejected,    "#991b1b"),
+    (mc1, "Shortlisted", shortlisted, "#10b981"),
+    (mc2, "Under review", review,      "#f59e0b"),
+    (mc3, "Rejected",     rejected,    "#ef4444"),
 ]:
     with col:
         st.markdown(f"""
-            <div class='metric-card'>
-                <div class='metric-number' style='color:{color};'>{value}</div>
+            <div class='metric-card' style='border-left: 4px solid {color};'>
+                <div class='metric-number'>{value}</div>
                 <div class='metric-label'>{label}</div>
             </div>
         """, unsafe_allow_html=True)
@@ -314,13 +358,13 @@ with tab1:
 
     if not candidates:
         st.markdown("""
-            <div style='background:white; border-radius:16px; padding:3rem;
-                        text-align:center; border:1px solid #ede9fe;'>
-                <div style='font-size:48px; color:#4c1d95;'>Processing ready</div>
-                <div style='font-size:16px; font-weight:600; color:#1f2937; margin-top:16px;'>
+            <div style='background:#1a1f2e; border-radius:16px; padding:3rem;
+                        text-align:center; border:1px solid #2d3748;'>
+                <div style='font-size:48px;'>🚀</div>
+                <div style='font-size:16px; font-weight:600; color:#E9ECEF; margin-top:16px;'>
                     Ready to hire smarter
                 </div>
-                <div style='font-size:13px; color:#9ca3af; margin-top:8px;'>
+                <div style='font-size:13px; color:#B0B8C4; margin-top:8px;'>
                     Post a job and upload resumes to get started
                 </div>
             </div>
@@ -334,8 +378,8 @@ with tab1:
                 "SHORTLIST": "#10b981",
                 "REVIEW":    "#f59e0b",
                 "REJECT":    "#ef4444",
-                "PENDING":   "#9ca3af"
-            }.get(c["status"], "#9ca3af")
+                "PENDING":   "#22d3ee"
+            }.get(c["status"], "#22d3ee")
 
             badge_class = {
                 "SHORTLIST": "badge-shortlist",
@@ -361,8 +405,9 @@ with tab1:
             """
 
         st.markdown(f"""
-            <div style='background:white; border-radius:16px;
-                        padding:1.25rem 1.5rem; border:1px solid #ede9fe;'>
+            <div style='background:#1a1f2e; border-radius:12px;
+                        padding:1.25rem 1.5rem; border:1px solid #2d3748;
+                        box-shadow: 0 1px 3px rgba(0,0,0,0.2);'>
                 {rows_html}
             </div>
         """, unsafe_allow_html=True)
@@ -393,23 +438,23 @@ with tab1:
             )
             
             fig.update_layout(
-                plot_bgcolor="#FFFFFF",
-                paper_bgcolor="#FFFFFF",
-                font=dict(family="Inter, sans-serif", size=12, color="#212529"),
+                plot_bgcolor="#1a1f2e",
+                paper_bgcolor="#0F1419",
+                font=dict(family="Inter, sans-serif", size=12, color="#E9ECEF"),
                 xaxis=dict(
                     showgrid=True,
                     gridwidth=1,
-                    gridcolor="#DEE2E6",
-                    title_font=dict(size=14, color="#0F2A4D"),
-                    tickfont=dict(size=11, color="#495057")
+                    gridcolor="#2d3748",
+                    title_font=dict(size=14, color="#E9ECEF"),
+                    tickfont=dict(size=11, color="#B0B8C4")
                 ),
                 yaxis=dict(
                     showgrid=True,
                     gridwidth=1,
-                    gridcolor="#DEE2E6",
+                    gridcolor="#2d3748",
                     range=[0, 100],
-                    title_font=dict(size=14, color="#0F2A4D"),
-                    tickfont=dict(size=11, color="#495057")
+                    title_font=dict(size=14, color="#E9ECEF"),
+                    tickfont=dict(size=11, color="#B0B8C4")
                 ),
                 hovermode="x unified",
                 height=400,
@@ -418,7 +463,7 @@ with tab1:
             
             fig.update_traces(
                 hovertemplate="<b>%{x}</b><br>Score: %{y}/100<extra></extra>",
-                marker=dict(line=dict(color="#0F2A4D", width=0.5))
+                marker=dict(line=dict(color="#4F46E5", width=0.5))
             )
             
             st.plotly_chart(fig, use_container_width=True)
@@ -496,10 +541,10 @@ Salary Range: {salary_range or 'Not specified'}
             with jc1:
                 st.markdown(f"""
                     <div class='job-card'>
-                        <div style='font-size:15px; font-weight:600; color:#1f2937;'>
+                        <div style='font-size:15px; font-weight:600; color:#FFFFFF;'>
                             {j['title']}
                         </div>
-                        <div style='font-size:12px; color:#9ca3af; margin-top:4px;'>
+                        <div style='font-size:12px; color:#B0B8C4; margin-top:4px;'>
                             ID: {j['id']}
                         </div>
                     </div>
@@ -538,15 +583,15 @@ with tab3:
         job_map    = {j["title"]: j["id"] for j in jobs}
 
         st.markdown("""
-            <div style='font-size:14px; font-weight:500; color:#374151; margin-bottom:6px;'>
+            <div style='font-size:14px; font-weight:500; color:#E9ECEF; margin-bottom:6px;'>
                 Select job role
             </div>
-            <div style='font-size:12px; color:#9ca3af; margin-bottom:14px;'>
+            <div style='font-size:12px; color:#B0B8C4; margin-bottom:14px;'>
                 Pick from the list or use the search box below to filter
             </div>
         """, unsafe_allow_html=True)
 
-        selected_title = st.radio(
+        selected_titles = st.multiselect(
             "Available roles",
             job_titles,
             label_visibility="collapsed"
@@ -575,26 +620,27 @@ with tab3:
                         <b>"{search_query}"</b>
                     </div>
                 """, unsafe_allow_html=True)
-                selected_title = st.radio(
+                selected_titles = st.multiselect(
                     "Matching roles",
                     matched,
                     label_visibility="collapsed",
-                    key="filtered_radio"
+                    key="filtered_multiselect"
                 )
             else:
                 st.warning(f"No roles found matching '{search_query}'.")
-                selected_title = None
+                selected_titles = []
 
-        if selected_title:
-            active_job_id = job_map[selected_title]
+        if selected_titles:
+            active_job_ids = [job_map[title] for title in selected_titles]
+            jobs_list = ", ".join(selected_titles)
             st.markdown(f"""
                 <div class='info-pill'>
                     Resumes will be screened against:
-                    <b>{selected_title}</b>
+                    <b>{jobs_list}</b>
                 </div>
             """, unsafe_allow_html=True)
         else:
-            active_job_id = None
+            active_job_ids = []
 
         st.markdown("<div style='margin-top:8px;'></div>", unsafe_allow_html=True)
 
@@ -618,6 +664,7 @@ with tab3:
                 else:
                     valid_files.append(f)
 
+
         if valid_files:
             st.markdown(f"""
                 <div class='info-pill'>
@@ -625,15 +672,40 @@ with tab3:
                 </div>
             """, unsafe_allow_html=True)
 
-            if active_job_id and st.button(
+            if active_job_ids and st.button(
                 "Start screening", use_container_width=True
             ):
-                progress   = st.progress(0)
-                status_box = st.empty()
-                results    = []
+                # Custom animated spinner and message
+                spinner_html = """
+                <div style='display:flex; flex-direction:column; align-items:center; margin-top:32px; margin-bottom:24px;'>
+                  <div class='custom-spinner' style='margin-bottom:18px;'>
+                    <div style='width:60px; height:60px; border:6px solid #6366f1; border-top:6px solid #fbbf24; border-radius:50%; animation: spin 1s linear infinite;'></div>
+                  </div>
+                  <div style='font-size:17px; color:#6366f1; font-weight:600;'>Initializing AI screening...</div>
+                  <div style='font-size:13px; color:#9ca3af; margin-top:6px;'>Preparing to analyze resumes with advanced AI</div>
+                </div>
+                """
+                spinner_box = st.empty()
+                spinner_box.markdown(spinner_html, unsafe_allow_html=True)
 
+                results = []
                 for i, file in enumerate(valid_files):
-                    status_box.info(f"Processing {file.name}...")
+                    # Update spinner with file name and process details
+                    spinner_box.markdown(f"""
+                        <div style='display:flex; flex-direction:column; align-items:center; margin-top:32px; margin-bottom:24px;'>
+                          <div class='custom-spinner' style='margin-bottom:18px;'>
+                            <div style='width:60px; height:60px; border:6px solid #6366f1; border-top:6px solid #fbbf24; border-radius:50%; animation: spin 1s linear infinite;'></div>
+                          </div>
+                          <div style='font-size:17px; color:#6366f1; font-weight:600;'>Processing <span style="color:#fbbf24">{file.name}</span></div>
+                          <div style='font-size:13px; color:#9ca3af; margin-top:6px; text-align:center;'>
+                            AI is working in the background:<br>
+                            • Parsing resume text and extracting content<br>
+                            • Analyzing skills, experience, and qualifications<br>
+                            • Scoring candidate fit against job requirements<br>
+                            • Generating detailed feedback and recommendations
+                          </div>
+                        </div>
+                    """, unsafe_allow_html=True)
 
                     save_path = os.path.join("uploads", file.name)
                     with open(save_path, "wb") as f:
@@ -644,7 +716,8 @@ with tab3:
                         st.info(f"Keeping image format for {file.name} ({ext[1:].upper()}) and processing in source format.")
 
                     try:
-                        result = process_resume(save_path, active_job_id)
+                        # Process resume against all selected jobs and use the first one's result
+                        result = process_resume(save_path, active_job_ids[0])
                         results.append(result)
 
                         badge = {
@@ -672,9 +745,9 @@ with tab3:
                         red_flags_html = ""
                         if result.get('red_flags'):
                             red_flags_html = f"""
-                            <div style='background:#fef2f2; border-radius:8px; padding:10px;
-                                        font-size:11px; color:#991b1b; margin-top:8px;
-                                        border:1px solid #fecaca;'>
+                            <div style='background:#7f1d1d; border-radius:8px; padding:10px;
+                                        font-size:11px; color:#fca5a5; margin-top:8px;
+                                        border:1px solid #991b1b;'>
                                 ⚠️ {result['red_flags']}
                             </div>
                             """
@@ -685,10 +758,10 @@ with tab3:
                                             align-items:center;'>
                                     <div>
                                         <div style='font-size:15px; font-weight:600;
-                                                    color:#1f2937;'>
+                                                    color:#FFFFFF;'>
                                             {name_display}
                                         </div>
-                                        <div style='font-size:12px; color:#9ca3af;
+                                        <div style='font-size:12px; color:#B0B8C4;
                                                     margin-top:2px;'>
                                             {email_display}
                                         </div>
@@ -698,15 +771,15 @@ with tab3:
                                             {result['status']}
                                         </span>
                                         <div style='font-size:22px; font-weight:700;
-                                                    color:#4c1d95; margin-top:4px;'>
+                                                    color:#FFFFFF; margin-top:4px;'>
                                             {score_display:.0f}
                                             <span style='font-size:12px;
-                                                         color:#9ca3af;'>/100</span>
+                                                         color:#B0B8C4;'>/100</span>
                                         </div>
                                     </div>
                                 </div>
                                 <div style='margin-top:12px;'>
-                                    <div style='font-size:12px; color:#9ca3af;
+                                    <div style='font-size:12px; color:#B0B8C4;
                                                 margin-bottom:3px;'>
                                         Skills match: {result.get('skills_match', 0):.0f}%
                                     </div>
@@ -717,7 +790,7 @@ with tab3:
                                     </div>
                                 </div>
                                 <div style='margin-top:8px;'>
-                                    <div style='font-size:12px; color:#9ca3af;
+                                    <div style='font-size:12px; color:#B0B8C4;
                                                 margin-bottom:3px;'>
                                         Experience fit: {result.get('experience_fit', 0):.0f}%
                                     </div>
@@ -735,18 +808,17 @@ with tab3:
                     except Exception as e:
                         st.error(f"Failed: {file.name} — {str(e)}")
 
-                    progress.progress((i + 1) / len(valid_files))
-
-                status_box.empty()
+                spinner_box.empty()
 
                 st.markdown("""
-                    <div style='background:#eef2ff; border-radius:12px; padding:12px;
-                                border:1px solid #c7d2fe; margin-top:12px;'>
-                        <strong style='color:#1f2937;'>Processing summary</strong><br>
-                        <span style='color:#374151;'>Processed files: {processed}</span><br>
-                        <span style='color:#374151;'>Accepted candidates: {accepted}</span><br>
-                        <span style='color:#374151;'>Under review: {review}</span><br>
-                        <span style='color:#374151;'>Rejected: {rejected}</span>
+                    <div style='background:#1a1f2e; border-radius:12px; padding:12px;
+                                border:1px solid #2d3748; margin-top:12px;
+                                box-shadow: 0 1px 3px rgba(0,0,0,0.2);'>
+                        <strong style='color:#E9ECEF;'>Processing summary</strong><br>
+                        <span style='color:#B0B8C4;'>Processed files: {processed}</span><br>
+                        <span style='color:#B0B8C4;'>Accepted candidates: {accepted}</span><br>
+                        <span style='color:#B0B8C4;'>Under review: {review}</span><br>
+                        <span style='color:#B0B8C4;'>Rejected: {rejected}</span>
                     </div>
                 """.format(
                     processed=len(valid_files),
@@ -756,7 +828,6 @@ with tab3:
                 ), unsafe_allow_html=True)
 
                 st.success(f"Done! {len(results)} resume(s) screened.")
-                st.balloons()
                 
                 import time
                 time.sleep(1)
@@ -826,37 +897,41 @@ with tab4:
                         <div style='margin-bottom:10px;'>
                             <span class='badge {badge_class}'>{c['status']}</span>
                         </div>
-                        <div style='font-size:13px; color:#6b7280; line-height:2;'>
-                            <b>Email:</b> {c['email']}<br>
-                            <b>Experience:</b> {c['experience_years'] or 'N/A'} years<br>
-                            <b>Education:</b> {c.get('education') or 'N/A'}<br>
-                            <b>Skills:</b> {c['skills'] or 'N/A'}
+                        <div style='font-size:13px; color:#E9ECEF; line-height:2;'>
+                            <b style='color:#FFFFFF;'>Email:</b> {c['email']}<br>
+                            <b style='color:#FFFFFF;'>Experience:</b> {c['experience_years'] or 'N/A'} years<br>
+                            <b style='color:#FFFFFF;'>Education:</b> {c.get('education') or 'N/A'}<br>
+                            <b style='color:#FFFFFF;'>Skills:</b> {c['skills'] or 'N/A'}<br>
+                            <b style='color:#FFFFFF;'>Scheduled:</b> {c.get('scheduled_at') or 'Not scheduled'}<br>
+                            <b style='color:#FFFFFF;'>Calendar:</b> {f"<a href=\"{c.get('calendar_link')}\" style=\"color:#4F46E5;\" target=\"_blank\">Link</a>" if c.get('calendar_link') else 'N/A'}<br>
+                            <b style='color:#FFFFFF;'>Email:</b> <span style='color:{'#10b981' if c.get('email_status')=='sent' else '#f59e0b' if c.get('email_status')=='skipped' else '#ef4444'};'>{c.get('email_status') or 'Not sent'}</span>
+                            {f"<span style='color:#ef4444;'> ({c.get('email_error')})</span>" if c.get('email_error') else ''}
                         </div>
                     """, unsafe_allow_html=True)
 
                     if c.get("red_flags"):
                         st.markdown(f"""
-                            <div style='background:#fef2f2; border-radius:8px;
+                            <div style='background:#7f1d1d; border-radius:8px;
                                         padding:10px 14px; font-size:12px;
-                                        color:#991b1b; margin-top:12px;
-                                        border:1px solid #fecaca;'>
+                                        color:#fca5a5; margin-top:12px;
+                                        border:1px solid #991b1b;'>
                                 {c['red_flags']}
                             </div>
                         """, unsafe_allow_html=True)
 
                 with col2:
                     st.markdown(f"""
-                        <div style='font-size:11px; color:#9ca3af; font-weight:500;
+                        <div style='font-size:11px; color:#B0B8C4; font-weight:500;
                                     text-transform:uppercase; letter-spacing:0.05em;
                                     margin-bottom:10px;'>Scores</div>
                         <div style='font-size:40px; font-weight:700;
-                                    color:#4c1d95; line-height:1;'>
+                                    color:#FFFFFF; line-height:1;'>
                             {score_val:.0f}
-                            <span style='font-size:14px; color:#9ca3af;
+                            <span style='font-size:14px; color:#B0B8C4;
                                          font-weight:400;'>/100</span>
                         </div>
                         <div style='margin-top:14px;'>
-                            <div style='font-size:12px; color:#6b7280; margin-bottom:3px;'>
+                            <div style='font-size:12px; color:#B0B8C4; margin-bottom:3px;'>
                                 Skills match: {skills_val:.0f}%
                             </div>
                             <div class='score-bar-bg'>
@@ -865,7 +940,7 @@ with tab4:
                             </div>
                         </div>
                         <div style='margin-top:10px;'>
-                            <div style='font-size:12px; color:#6b7280; margin-bottom:3px;'>
+                            <div style='font-size:12px; color:#B0B8C4; margin-bottom:3px;'>
                                 Experience fit: {exp_val:.0f}%
                             </div>
                             <div class='score-bar-bg'>
@@ -877,13 +952,13 @@ with tab4:
 
                 with col3:
                     st.markdown(f"""
-                        <div style='font-size:11px; color:#9ca3af; font-weight:500;
+                        <div style='font-size:11px; color:#B0B8C4; font-weight:500;
                                     text-transform:uppercase; letter-spacing:0.05em;
                                     margin-bottom:10px;'>AI analysis</div>
-                        <div style='font-size:12px; color:#6b7280; line-height:1.9;'>
-                            <b style='color:#065f46;'>Strengths</b><br>
+                        <div style='font-size:12px; color:#E9ECEF; line-height:1.9;'>
+                            <b style='color:#10b981;'>Strengths</b><br>
                             {c['strengths'] or 'N/A'}<br><br>
-                            <b style='color:#991b1b;'>Weaknesses</b><br>
+                            <b style='color:#ef4444;'>Weaknesses</b><br>
                             {c['weaknesses'] or 'N/A'}
                         </div>
                     """, unsafe_allow_html=True)
@@ -905,10 +980,49 @@ with tab4:
                         )
                         if st.button("Generate email", key=f"gen_{c['id']}"):
                             email = draft_interview_email(
-                                c["name"], "the position",
-                                str(d), str(t), link
+                                c["name"], c.get("current_role", "the position"),
+                                d.strftime('%Y-%m-%d'), t.strftime('%I:%M %p'), link
                             )
                             st.session_state[f"email_{c['id']}"] = email
+
+                        if st.button("Schedule & Send", key=f"send_{c['id']}"):
+                            schedule_result = schedule_interview(
+                                c["name"], c["email"], c.get("current_role", "Interview"),
+                                d.strftime('%Y-%m-%d'), t.strftime('%I:%M %p')
+                            )
+
+                            email_body = draft_interview_email(
+                                c["name"], c.get("current_role", "the position"),
+                                schedule_result.get("interview_date", d.strftime('%Y-%m-%d')),
+                                schedule_result.get("interview_time", t.strftime('%I:%M %p')),
+                                schedule_result.get("calendar_link", link)
+                            )
+
+                            email_result = send_email(
+                                c["email"],
+                                f"Interview Invitation: {c.get('current_role', 'Interview')}",
+                                email_body
+                            )
+
+                            # Update candidate record in database
+                            with Session(engine) as session:
+                                candidate = session.get(Candidate, c["id"])
+                                if candidate:
+                                    candidate.scheduled_at = datetime.utcnow()
+                                    candidate.calendar_link = schedule_result.get("calendar_link")
+                                    candidate.email_status = email_result.get("status")
+                                    candidate.email_error = email_result.get("error") or email_result.get("message")
+                                    session.add(candidate)
+                                    session.commit()
+
+                            st.success("Scheduled and sent candidate invitation")
+                            st.markdown(
+                                f"- Calendar link: {schedule_result.get('calendar_link')}<br>"
+                                f"- Email status: {email_result.get('status')}<br>"
+                                f"- Error: {email_result.get('error', '')}",
+                                unsafe_allow_html=True
+                            )
+                            st.rerun()
 
                         if f"email_{c['id']}" in st.session_state:
                             st.text_area(

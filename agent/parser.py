@@ -2,6 +2,8 @@ import fitz
 import docx
 import os
 import json
+import subprocess
+import tempfile
 from groq import Groq
 from dotenv import load_dotenv
 from PIL import Image
@@ -9,6 +11,38 @@ import io
 
 load_dotenv()
 client = Groq(api_key=os.getenv("GROQ_API_KEY"))
+
+def ocr_image_with_tesseract(image: Image.Image) -> str:
+    """Use Tesseract OCR directly via subprocess."""
+    tesseract_path = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
+    
+    if not os.path.exists(tesseract_path):
+        return ""
+    
+    try:
+        # Save image to temp file
+        with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as tmp:
+            image.save(tmp.name)
+            tmp_path = tmp.name
+        
+        # Run tesseract via subprocess
+        result = subprocess.run(
+            [tesseract_path, tmp_path, 'stdout'],
+            capture_output=True,
+            text=True,
+            timeout=30
+        )
+        
+        # Clean up temp file
+        os.unlink(tmp_path)
+        
+        if result.returncode == 0:
+            return result.stdout.strip()
+        else:
+            return ""
+    except Exception as e:
+        return ""
+
 
 def extract_text_from_pdf(file_path: str) -> tuple:
     """Extract text from PDF. Handles both searchable and image-based PDFs."""
@@ -27,14 +61,8 @@ def extract_text_from_pdf(file_path: str) -> tuple:
     # If no searchable text found, try OCR on rendered images
     if not has_searchable_content:
         image_based = True
-        ocr_attempted = False
-        ocr_succeeded = False
         
         try:
-            import pytesseract
-            ocr_attempted = True
-            pytesseract.pytesseract.pytesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
-            
             for page_num, page in enumerate(doc):
                 try:
                     # Render page to image using fitz
@@ -42,25 +70,21 @@ def extract_text_from_pdf(file_path: str) -> tuple:
                     img_data = pix.tobytes("ppm")
                     img = Image.open(io.BytesIO(img_data))
                     
-                    # OCR the image
-                    ocr_text = pytesseract.image_to_string(img)
+                    # OCR the image using Tesseract
+                    ocr_text = ocr_image_with_tesseract(img)
                     if ocr_text.strip():
                         text += ocr_text + "\n"
-                        ocr_succeeded = True
                 except Exception:
                     continue
                     
-        except ImportError:
-            text = "[Image-based PDF] pytesseract not installed. Cannot process image-based resume."
         except Exception as e:
-            if ocr_attempted and not ocr_succeeded:
-                text = "[Image-based PDF] Tesseract-OCR not properly configured on system. Cannot extract text."
-            else:
-                text = f"[Image-based PDF] Could not process: {type(e).__name__}"
-        finally:
-            # If we attempted OCR but got nothing, set error message
-            if image_based and not text:
-                text = "[Image-based PDF] Cannot extract text. Tesseract-OCR may not be installed. Please upload a searchable PDF instead."
+            text = "[Image-based PDF] Could not process with OCR. Tesseract may not be installed correctly. " \
+                   "Visit: https://github.com/UB-Mannheim/tesseract/wiki and install Tesseract-OCR."
+        
+        # If still no text extracted
+        if image_based and not text:
+            text = "[Image-based PDF] Cannot extract text. Tesseract-OCR may not be properly installed. " \
+                   "Please install from: https://github.com/UB-Mannheim/tesseract/wiki or upload a searchable PDF."
     
     return text.strip(), image_based
 
@@ -83,17 +107,14 @@ def extract_text(file_path: str) -> tuple:
         return extract_text_from_docx(file_path)
     elif ext in [".png", ".jpg", ".jpeg"]:
         try:
-            import pytesseract
             image = Image.open(file_path)
-            ocr_text = pytesseract.image_to_string(image).strip()
+            ocr_text = ocr_image_with_tesseract(image).strip()
             if ocr_text:
                 return ocr_text, True
             else:
                 return f"[Image file: {os.path.basename(file_path)} -- no text detected]", True
-        except ImportError:
-            return f"[Image file: {os.path.basename(file_path)} -- OCR not configured]", True
         except Exception as e:
-            raise ValueError(f"Failed to read image file {file_path}: {e}")
+            return f"[Image file: {os.path.basename(file_path)} -- OCR failed: {str(e)}]", True
     else:
         raise ValueError(f"Unsupported file type: {ext}")
 

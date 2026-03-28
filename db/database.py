@@ -1,10 +1,24 @@
 from sqlmodel import SQLModel, create_engine, Session
+from sqlalchemy import text
+from sqlalchemy.exc import OperationalError
 
 DATABASE_URL = "sqlite:///./db/hiring_agent.db"
 engine = create_engine(DATABASE_URL, echo=False)
 
 def create_db():
     SQLModel.metadata.create_all(engine)
+    # Sqlalchemy create_all doesn't alter existing tables; ensure new columns exist after code changes.
+    with engine.begin() as conn:
+        for col_def in [
+            "scheduled_at DATETIME",
+            "calendar_link TEXT",
+            "email_status TEXT",
+            "email_error TEXT",
+        ]:
+            try:
+                conn.execute(text(f"ALTER TABLE candidate ADD COLUMN {col_def}"))
+            except OperationalError:
+                pass
 
 def get_session():
     with Session(engine) as session:

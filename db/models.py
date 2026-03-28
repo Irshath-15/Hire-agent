@@ -19,6 +19,10 @@ class Candidate(SQLModel, table=True):
     weaknesses: Optional[str] = None
     red_flags: Optional[str] = None
     status: str = Field(default="pending")
+    scheduled_at: Optional[datetime] = None
+    calendar_link: Optional[str] = None
+    email_status: Optional[str] = None
+    email_error: Optional[str] = None
     uploaded_at: datetime = Field(default_factory=datetime.utcnow)
 
 class JobDescription(SQLModel, table=True):

@@ -1,0 +1,36 @@
+001:             'candidate_id': candidate.id,
+002:             'name': candidate.name,
+003:             'email': candidate.email,
+004:             'status': candidate.status,
+005:             'score': candidate.score,
+006:             'skills_match': candidate.skills_match,
+007:             'experience_fit': candidate.experience_fit,
+008:             'strengths': candidate.strengths,
+009:             'weaknesses': candidate.weaknesses,
+010:             'red_flags': candidate.red_flags,
+011:             'job_id': job.id,
+012:             'job_title': job.title,
+013:             'decision_reason': score_data.get('decision_reason'),
+014:             'semantic_similarity': semantic_data.get('semantic_similarity'),
+015:             'report': report
+016:         }
+017:         base.update({
+018:             'analysis': score_data,
+019:             'semantic': semantic_data,
+020:             'action': action_results,
+021:             'memory': memory_results,
+022:             'learning': learning_info,
+023:             'dashboard': dashboard_update(candidate)
+024:         })
+025:         return base
+026: 
+027: 
+028: def process_resume(file_path: str, job_id: int) -> dict:
+029:     return run_hiring_pipeline(job_id, file_path)
+030: 
+031: 
+032: def create_job(title: str, description: str) -> int:
+033:     create_db()
+034:     with Session(engine) as session:
+035:         job = JobDescription(title=title, description=description)
+036:         session.add(job)
