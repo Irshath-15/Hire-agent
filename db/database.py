@@ -1,21 +1,23 @@
 from sqlmodel import SQLModel, create_engine, Session
-from sqlalchemy import text
+from sqlalchemy import text, event
 from sqlalchemy.exc import OperationalError
+from sqlalchemy.pool import StaticPool
 import os
 
-# Use a path that works better on Streamlit Cloud
-# Streamlit Cloud: Use /tmp for ephemeral storage (will reset on redeployment)
-# Local: Use ./db/ directory
-if os.environ.get("STREAMLIT_SERVER_HEADLESS"):
-    # Running on Streamlit Cloud
-    db_path = "/tmp/hiring_agent.db"
-else:
-    # Running locally
-    os.makedirs("db", exist_ok=True)
-    db_path = "./db/hiring_agent.db"
+# Database path - use current directory (writable on Streamlit Cloud)
+db_dir = os.path.expanduser("~/.streamlit_cache")
+os.makedirs(db_dir, exist_ok=True)
+db_path = os.path.join(db_dir, 'hiring_agent.db')
 
 DATABASE_URL = f"sqlite:///{db_path}"
-engine = create_engine(DATABASE_URL, echo=False, connect_args={"check_same_thread": False})
+
+# For SQLite: use StaticPool to avoid connection pool issues with Streamlit
+engine = create_engine(
+    DATABASE_URL, 
+    echo=False, 
+    connect_args={"check_same_thread": False, "timeout": 30},
+    poolclass=StaticPool
+)
 
 def create_db():
     try:
