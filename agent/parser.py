@@ -14,156 +14,162 @@ load_dotenv()
 client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 
 def ocr_image_with_tesseract(image: Image.Image) -> str:
-    """Use Tesseract OCR via pytesseract library with multiple fallback methods."""
-    # Try different OCR configurations
-    configs = [
-        '',  # Default
-        '--psm 6',  # Uniform block of text
-        '--psm 3',  # Fully automatic page segmentation
-        '--psm 1',  # Automatic page segmentation with OSD
-    ]
-    
-    for config in configs:
-        try:
-            import pytesseract
-            
-            # Set tesseract path based on OS
+    """Fast OCR with single optimized configuration."""
+    try:
+        import pytesseract
+
+        # Set tesseract path based on OS (cached)
+        if not hasattr(ocr_image_with_tesseract, '_tesseract_path'):
             system = platform.system()
-            
+
             if system == "Windows":
-                pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
+                ocr_image_with_tesseract._tesseract_path = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
             elif system == "Linux":
-                # Try multiple possible paths
+                # Try multiple possible paths (only once)
                 possible_paths = [
                     '/usr/bin/tesseract',
                     '/usr/local/bin/tesseract',
                     'tesseract'  # In PATH
                 ]
-                
+
                 tesseract_path = None
                 for path in possible_paths:
                     try:
-                        # Test if tesseract is available
-                        result = subprocess.run([path, '--version'], 
-                                              capture_output=True, text=True, timeout=5)
+                        result = subprocess.run([path, '--version'],
+                                              capture_output=True, text=True, timeout=2)
                         if result.returncode == 0:
                             tesseract_path = path
                             break
                     except:
                         continue
-                
-                if tesseract_path:
-                    pytesseract.pytesseract.tesseract_cmd = tesseract_path
-                else:
-                    # Last resort - assume it's in PATH
-                    pytesseract.pytesseract.tesseract_cmd = 'tesseract'
-            
-            # Try OCR with current config
-            result = pytesseract.image_to_string(image, config=config, timeout=15)
-            text = result.strip() if result else ""
-            
-            if text and len(text) > 10:  # Require minimum text length
-                return text
-                
-        except ImportError:
-            return ""  # pytesseract not available
-        except Exception as e:
-            print(f"OCR with config '{config}' failed: {e}")
-            continue
-    
-    return ""  # All OCR attempts failed
+
+                ocr_image_with_tesseract._tesseract_path = tesseract_path or 'tesseract'
+            else:
+                ocr_image_with_tesseract._tesseract_path = 'tesseract'
+
+        pytesseract.pytesseract.tesseract_cmd = ocr_image_with_tesseract._tesseract_path
+
+        # Single fast OCR config
+        result = pytesseract.image_to_string(image, config='--psm 6', timeout=8)
+        text = result.strip() if result else ""
+
+        # Return any text found (even short)
+        return text
+
+    except ImportError:
+        return ""  # pytesseract not available
+    except Exception as e:
+        print(f"OCR failed: {e}")
+        return ""
 
 
 def extract_text_from_pdf(file_path: str) -> tuple:
-    """Extract text from PDF. Tries multiple methods to ensure text extraction."""
+    """Extract text from PDF. Optimized for speed with smart OCR."""
     try:
         doc = fitz.open(file_path)
     except Exception as e:
         return f"[ERROR] Could not open PDF: {str(e)}", False
-    
+
     text = ""
     has_any_content = False
-    
+    needs_ocr = False
+
     try:
-        # Method 1: Standard text extraction
-        for page in doc:
+        # Method 1: Quick standard text extraction - check first few pages
+        sample_pages = min(3, len(doc))  # Check first 3 pages max
+
+        for page_num in range(sample_pages):
+            page = doc[page_num]
             page_text = page.get_text()
             if page_text.strip():
                 text += page_text + "\n"
                 has_any_content = True
-        
-        # If we got some text, return it
-        if has_any_content and text.strip():
+
+        # If we got good text from sample, extract all pages quickly
+        if has_any_content and len(text.strip()) > 100:
+            for page_num in range(len(doc)):
+                if page_num < sample_pages:  # Skip already processed pages
+                    continue
+                page = doc[page_num]
+                page_text = page.get_text()
+                if page_text.strip():
+                    text += page_text + "\n"
             doc.close()
             return text.strip(), False
-            
+
+        # If sample pages had little/no text, check if document needs OCR
+        needs_ocr = True
+
     except Exception as e:
         print(f"Standard extraction failed: {e}")
-    
-    # Method 2: Try OCR on all pages if standard extraction failed or got no text
-    print("Attempting OCR extraction...")
+        needs_ocr = True
+
+    # Method 2: Smart OCR - only on pages that need it
     ocr_text = ""
     ocr_success = False
-    
-    try:
-        for page_num, page in enumerate(doc):
-            try:
-                # Render page to image
-                pix = page.get_pixmap(matrix=fitz.Matrix(2, 2))  # Higher resolution
-                img_data = pix.tobytes("png")
-                img = Image.open(io.BytesIO(img_data))
-                
-                # Try OCR
-                page_ocr = ocr_image_with_tesseract(img)
-                if page_ocr.strip():
-                    ocr_text += page_ocr + "\n"
-                    ocr_success = True
-                    has_any_content = True
-                    
-            except Exception as page_err:
-                print(f"Page {page_num} OCR failed: {page_err}")
-                continue
-                
-    except Exception as e:
-        print(f"OCR process failed: {e}")
-    
-    # Combine results
-    final_text = text + ocr_text if text else ocr_text
-    
+
+    if needs_ocr:
+        print("Attempting targeted OCR extraction...")
+        try:
+            # Process pages, but limit to first 5 pages for speed
+            max_pages = min(5, len(doc))
+
+            for page_num in range(max_pages):
+                try:
+                    page = doc[page_num]
+
+                    # Quick check: does this page have any text already?
+                    existing_text = page.get_text()
+                    if existing_text.strip() and len(existing_text) > 50:
+                        # Page already has good text, skip OCR
+                        text += existing_text + "\n"
+                        continue
+
+                    # Render page to image (lower resolution for speed)
+                    pix = page.get_pixmap(matrix=fitz.Matrix(1.5, 1.5))  # Lower resolution
+                    img_data = pix.tobytes("png")
+                    img = Image.open(io.BytesIO(img_data))
+
+                    # Fast OCR with single config
+                    page_ocr = ocr_image_with_tesseract(img)
+                    if page_ocr.strip():
+                        ocr_text += page_ocr + "\n"
+                        ocr_success = True
+                        has_any_content = True
+
+                except Exception as page_err:
+                    print(f"Page {page_num} OCR failed: {page_err}")
+                    continue
+
+        except Exception as e:
+            print(f"OCR process failed: {e}")
+
     try:
         doc.close()
     except:
         pass
-    
+
+    # Combine results
+    final_text = text + ocr_text if text else ocr_text
+
     if final_text.strip():
         return final_text.strip(), ocr_success
     else:
-        # Last resort: try to extract any text at all with different settings
+        # Last resort: try basic extraction on all pages
         try:
             doc = fitz.open(file_path)
             fallback_text = ""
             for page in doc:
-                # Try different extraction flags
-                page_text = page.get_text("text")  # Try basic text
-                if not page_text:
-                    page_text = page.get_text("blocks")  # Try blocks
-                if page_text and isinstance(page_text, str) and page_text.strip():
+                page_text = page.get_text()
+                if page_text.strip():
                     fallback_text += page_text + "\n"
-                elif page_text and isinstance(page_text, list):
-                    # Handle block format
-                    for block in page_text:
-                        if isinstance(block, dict) and block.get('text'):
-                            fallback_text += block['text'] + "\n"
             doc.close()
-            
             if fallback_text.strip():
                 return fallback_text.strip(), False
-                
-        except Exception as e:
-            print(f"Fallback extraction failed: {e}")
-    
-    # Only return error if ALL methods failed
-    return "[ERROR] Could not extract any text from PDF using any method", True
+        except:
+            pass
+
+        return "[ERROR] Could not extract any text from PDF", False
 
 def extract_text_from_docx(file_path: str) -> tuple:
     """Extract text from DOCX file - returns actual document text."""
@@ -211,9 +217,17 @@ def extract_text(file_path: str) -> tuple:
         raise ValueError(f"Unsupported file type: {ext}")
 
 def parse_resume_with_ai(raw_text: str) -> dict:
+    """Parse resume with AI, optimized for speed."""
     # First try to extract name before AI processing
     inferred_name = infer_name_from_text(raw_text)
-    
+
+    # Truncate very long resumes for faster processing (keep first 4000 chars + last 1000)
+    if len(raw_text) > 5000:
+        truncated_text = raw_text[:4000] + "\n...\n" + raw_text[-1000:]
+        print(f"Truncated resume from {len(raw_text)} to {len(truncated_text)} chars for faster processing")
+    else:
+        truncated_text = raw_text
+
     prompt = f"""You are a resume parser. Extract information from this resume and return ONLY a valid JSON object with no markdown, no code blocks, and no explanation. Return ONLY the JSON.
 
 {{
@@ -231,13 +245,13 @@ IMPORTANT: Do NOT change or generate the name field. Keep it as: {inferred_name 
 Only extract email, phone, skills, experience, education, and red_flags from the resume text.
 
 Resume text:
-{raw_text}"""
+{truncated_text}"""
 
     try:
         response = client.chat.completions.create(
             model="llama-3.3-70b-versatile",
-            max_tokens=800,
-            timeout=15.0,
+            max_tokens=600,  # Reduced from 800
+            timeout=10.0,    # Reduced from 15.0
             messages=[{"role": "user", "content": prompt}]
         )
     except Exception as e:

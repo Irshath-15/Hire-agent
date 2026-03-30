@@ -706,12 +706,12 @@ with tab3:
                             <div style='width:60px; height:60px; border:6px solid #6366f1; border-top:6px solid #fbbf24; border-radius:50%; animation: spin 1s linear infinite;'></div>
                           </div>
                           <div style='font-size:17px; color:#6366f1; font-weight:600;'>Processing <span style="color:#fbbf24">{file.name}</span></div>
-                          <div style='font-size:13px; color:#9ca3af; margin-top:6px; text-align:center;'>
-                            AI is working in the background:<br>
-                            • Parsing resume text and extracting content<br>
-                            • Analyzing skills, experience, and qualifications<br>
-                            • Scoring candidate fit against job requirements<br>
-                            • Generating detailed feedback and recommendations
+                          <div style='font-size:13px; color:#9ca3af; margin-top:6px; text-align:center; line-height:1.4;'>
+                            ⚡ <strong>Optimized for Speed:</strong><br>
+                            • Smart text extraction (skips OCR when possible)<br>
+                            • Fast AI analysis with truncated prompts<br>
+                            • Parallel processing pipeline<br>
+                            <span style='color:#10b981;'>Expected: 10-20 seconds per resume</span>
                           </div>
                         </div>
                     """, unsafe_allow_html=True)

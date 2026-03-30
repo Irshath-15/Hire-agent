@@ -163,7 +163,9 @@ def memory_store(candidate_id: int, job_id: int, summary: str, embedding: str, s
 
 
 def run_hiring_pipeline(job_id: int, file_path: str) -> dict:
+    import time
     create_db()
+    start_time = time.time()
 
     try:
         print(f"\n[PIPELINE] Starting pipeline for {os.path.basename(file_path)} with job_id={job_id}")
@@ -173,22 +175,42 @@ def run_hiring_pipeline(job_id: int, file_path: str) -> dict:
                 raise ValueError(f"Job ID {job_id} not found")
 
             # Step 1: Resume Parser + JD Embedding (Affinda/Unstructured + OpenAI Embeddings)
-            print(f"[PIPELINE] Starting parse_resume...")
+            print(f"[PIPELINE] Step 1/4: Parsing resume...")
+            step_start = time.time()
             parsed = parse_resume(file_path)
-            print(f"[PIPELINE] Parsed result: {list(parsed.keys())}")
-            
+            parse_time = time.time() - step_start
+            print(f"[PIPELINE] ✓ Parsed in {parse_time:.1f}s: {list(parsed.keys())}")
+
+            print(f"[PIPELINE] Step 1/4: Creating embeddings...")
             jd_embedding = embed_text(job.description)  # Embed JD
             resume_embedding = embed_text(parsed.get('raw_text', ''))
+            embed_time = time.time() - step_start - parse_time
+            print(f"[PIPELINE] ✓ Embeddings created in {embed_time:.1f}s")
 
             # Step 2: AI Brain (evaluate skills and experience)
+            print(f"[PIPELINE] Step 2/4: AI analysis...")
+            step_start = time.time()
             brain_data = ai_brain(parsed)
+            brain_time = time.time() - step_start
+            print(f"[PIPELINE] ✓ AI analysis completed in {brain_time:.1f}s")
 
             # Step 3: Semantic Matching + Scoring
+            print(f"[PIPELINE] Step 3/4: Semantic matching and scoring...")
+            step_start = time.time()
             semantic_data = semantic_match(job.description, parsed.get('raw_text', ''))
             score_data = score_and_reason(parsed, semantic_data, job.description)
+            score_time = time.time() - step_start
+            print(f"[PIPELINE] ✓ Scoring completed in {score_time:.1f}s")
 
             # Step 4: Decision Engine
+            print(f"[PIPELINE] Step 4/4: Final decision...")
+            step_start = time.time()
             final_decision = decision_engine(score_data, parsed)
+            decision_time = time.time() - step_start
+            print(f"[PIPELINE] ✓ Decision made in {decision_time:.1f}s")
+
+            total_time = time.time() - start_time
+            print(f"[PIPELINE] ✓ Pipeline completed in {total_time:.1f}s total")
 
             # Sanitize ALL values to prevent database errors
             print(f"[PIPELINE] Raw parsed data: {parsed}")
