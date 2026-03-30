@@ -3,6 +3,8 @@ import docx
 import os
 import json
 import tempfile
+import subprocess
+import platform
 from groq import Groq
 from dotenv import load_dotenv
 from PIL import Image
@@ -15,32 +17,58 @@ def ocr_image_with_tesseract(image: Image.Image) -> str:
     """Use Tesseract OCR via pytesseract library."""
     try:
         import pytesseract
-        # pytesseract.pytesseract.pytesseract_cmd can be set if needed
-        # On Linux (Streamlit Cloud), tesseract should be in PATH
-        result = pytesseract.image_to_string(image)
-        return result.strip()
+        
+        # Set tesseract path based on OS
+        system = platform.system()
+        
+        if system == "Windows":
+            # Windows path
+            pytesseract.pytesseract.pytesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
+        elif system == "Linux":
+            # Linux/Streamlit Cloud - try common paths
+            try:
+                # Try to find tesseract in PATH
+                result = subprocess.run(['which', 'tesseract'], capture_output=True, text=True, timeout=5)
+                if result.returncode == 0:
+                    pytesseract.pytesseract.pytesseract_cmd = result.stdout.strip()
+            except:
+                # Use default Linux path
+                pytesseract.pytesseract.pytesseract_cmd = '/usr/bin/tesseract'
+        
+        # Try OCR with timeout
+        result = pytesseract.image_to_string(image, timeout=10)
+        return result.strip() if result else ""
     except Exception as e:
-        # If pytesseract or tesseract not available, return empty
+        print(f"OCR Error: {type(e).__name__}: {str(e)}")
         return ""
 
 
 def extract_text_from_pdf(file_path: str) -> tuple:
     """Extract text from PDF. Handles both searchable and image-based PDFs with Tesseract OCR."""
-    doc = fitz.open(file_path)
+    try:
+        doc = fitz.open(file_path)
+    except Exception as e:
+        print(f"PDF open error: {e}")
+        return f"[ERROR] Could not open PDF: {str(e)}", True
+    
     text = ""
     image_based = False
     has_searchable_content = False
     
     # First try to extract text normally
-    for page in doc:
-        page_text = page.get_text()
-        if page_text.strip():
-            text += page_text + "\n"
-            has_searchable_content = True
+    try:
+        for page in doc:
+            page_text = page.get_text()
+            if page_text.strip():
+                text += page_text + "\n"
+                has_searchable_content = True
+    except Exception as e:
+        print(f"PDF text extraction error: {e}")
     
     # If no searchable text found, try OCR on rendered images
     if not has_searchable_content:
         image_based = True
+        ocr_attempted = False
         
         try:
             for page_num, page in enumerate(doc):
@@ -51,19 +79,29 @@ def extract_text_from_pdf(file_path: str) -> tuple:
                     img = Image.open(io.BytesIO(img_data))
                     
                     # OCR the image using Tesseract via pytesseract
+                    ocr_attempted = True
                     ocr_text = ocr_image_with_tesseract(img)
                     if ocr_text.strip():
                         text += ocr_text + "\n"
-                except Exception:
+                except Exception as page_err:
+                    print(f"Page {page_num} OCR error: {page_err}")
                     continue
                     
         except Exception as e:
-            # Fallback message if OCR fails
+            print(f"PDF OCR loop error: {e}")
             text = ""
         
         # If still no text extracted
         if image_based and not text.strip():
-            text = "[IMAGE-BASED PDF] Could not extract text using OCR. Please upload a searchable/text-based PDF instead."
+            if ocr_attempted:
+                text = "[IMAGE-BASED PDF] OCR processing failed. Please try: 1) Converting PDF to searchable format, 2) Uploading .docx or .txt instead, 3) Using iLovePDF or similar tool to convert"
+            else:
+                text = "[IMAGE-BASED PDF] Could not extract text using OCR. Please upload a searchable/text-based PDF instead."
+    
+    try:
+        doc.close()
+    except:
+        pass
     
     return text.strip(), image_based
 
