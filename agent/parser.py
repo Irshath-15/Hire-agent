@@ -245,7 +245,7 @@ def infer_name_from_text(raw_text: str) -> str | None:
             if candidate and 2 < len(candidate.split()) <= 5:
                 return candidate
     
-    # Strategy 2: Email prefix often contains name
+    # Strategy 2: Email prefix often contains name (PRIORITIZE THIS)
     email_match = re.search(r"([\w.%+-]+)@", raw_text)
     if email_match:
         local = email_match.group(1)
@@ -253,6 +253,7 @@ def infer_name_from_text(raw_text: str) -> str | None:
         if '_' in local or '.' in local:
             name = re.sub(r'[._]', ' ', local).title()
             if name and len(name.split()) <= 5:
+                print(f"[NAME_EXTRACT] Using email-derived name: '{name}'")
                 return name
     
     # Strategy 3: First line that looks like a name (2-4 capitalized words)
@@ -299,6 +300,21 @@ def infer_name_from_text(raw_text: str) -> str | None:
                 prev_line = lines[i-1]
                 if len(prev_line.split()) <= 4 and all(w[0].isupper() for w in prev_line.split() if w):
                     return prev_line
+
+    # Strategy 5: If no name found, try to derive from email as last resort
+    email_match = re.search(r"([\w.%+-]+)@", raw_text)
+    if email_match:
+        local = email_match.group(1)
+        # Try different variations
+        variations = [
+            local.replace('.', ' ').replace('_', ' ').title(),
+            local.split('.')[0].title() if '.' in local else local.title(),
+            local.split('_')[0].title() if '_' in local else local.title()
+        ]
+        for name in variations:
+            if name and len(name.split()) <= 3:
+                print(f"[NAME_EXTRACT] Last resort - using email variation: '{name}'")
+                return name
 
     print("[NAME_EXTRACT] No name found")
     return None
