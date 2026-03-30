@@ -293,8 +293,8 @@ def parse_resume(file_path: str) -> dict:
         }
     
     # If no text could be extracted, return appropriate error
-    if raw_text.startswith('['):
-        print(f"[PARSER] Text starts with '[' - likely an error: {raw_text[:100]}")
+    if not raw_text or raw_text.startswith('['):
+        print(f"[PARSER] No text extracted or error: {raw_text[:100] if raw_text else 'empty'}")
         return {
             'name': None,
             'email': None,
@@ -303,9 +303,9 @@ def parse_resume(file_path: str) -> dict:
             'experience_years': None,
             'skills': None,
             'education': None,
-            'red_flags': raw_text,
-            'raw_text': raw_text,
-            'is_image_based': True
+            'red_flags': raw_text or '[ERROR] Could not extract text - ensure file is readable',
+            'raw_text': raw_text or '',
+            'is_image_based': is_image_based
         }
 
     # First, try to extract name BEFORE AI parsing
@@ -316,39 +316,59 @@ def parse_resume(file_path: str) -> dict:
         print(f"[PARSER] infer_name_from_text failed: {type(e).__name__}: {str(e)}")
         inferred_name = None
     
-    # Then parse with AI
+    # Then parse with AI - but use fallback if it fails
     try:
         parsed = parse_resume_with_ai(raw_text)
         print(f"[PARSER] AI parsing succeeded: {parsed.get('name')}")
     except Exception as e:
         print(f"[PARSER] parse_resume_with_ai failed: {type(e).__name__}: {str(e)}")
-        parsed = {
-            'name': inferred_name,
-            'email': None,
-            'phone': None,
-            'current_role': None,
-            'experience_years': None,
-            'skills': None,
-            'education': None,
-            'red_flags': f'AI parsing error: {str(e)}'
-        }
+        # Use simple fallback parsing
+        parsed = simple_extract(raw_text)
+        parsed['name'] = inferred_name or parsed.get('name')
+        print(f"[PARSER] Using fallback parser, name={parsed.get('name')}")
     
     parsed['raw_text'] = raw_text
     parsed['is_image_based'] = is_image_based
 
-    # Use inferred name if AI couldn't find one
+    # Ensure name is set
     if not parsed.get('name') and inferred_name:
         parsed['name'] = inferred_name
         print(f"[PARSER] Using inferred name: {inferred_name}")
-    elif not parsed.get('name'):
-        # Second attempt at inference if both failed
-        try:
-            inferred = infer_name_from_text(raw_text)
-            if inferred:
-                parsed['name'] = inferred
-                print(f"[PARSER] Second inference succeeded: {inferred}")
-        except:
-            pass
     
     print(f"[PARSER] Final result: name={parsed.get('name')}, email={parsed.get('email')}")
     return parsed
+
+
+def simple_extract(raw_text: str) -> dict:
+    """Simple fallback extraction when AI parsing fails."""
+    import re
+    
+    result = {
+        'name': None,
+        'email': None,
+        'phone': None,
+        'current_role': None,
+        'experience_years': None,
+        'skills': None,
+        'education': None,
+        'red_flags': None
+    }
+    
+    # Try to find email
+    email_match = re.search(r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}', raw_text)
+    if email_match:
+        result['email'] = email_match.group(0)
+    
+    # Try to find phone
+    phone_match = re.search(r'(?:\+\d{1,3}[-.]?)?\(?\d{3}\)?[-.]?\d{3}[-.]?\d{4}', raw_text)
+    if phone_match:
+        result['phone'] = phone_match.group(0)
+    
+    # Try to find name from first line or contact section
+    lines = [l.strip() for l in raw_text.split('\n') if l.strip()]
+    if lines:
+        first_line = lines[0]
+        if not any(x in first_line.lower() for x in ['phone', 'email', 'address', 'linkedin']):
+            result['name'] = first_line[:100]  # Use first line as name if it looks reasonable
+    
+    return result

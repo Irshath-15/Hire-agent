@@ -744,10 +744,17 @@ with tab3:
                         name_display = result.get('name') or 'Unable to parse'
                         email_display = result.get('email') or 'No email'
                         score_display = result.get('score') or 0
+                        status = result.get('status', 'ERROR')
+                        
+                        # Show error details if parsing failed
+                        if status == 'ERROR':
+                            error_msg = result.get('error') or result.get('message') or 'Unknown error'
+                            st.warning(f"⚠️ **Processing Error for {file.name}**\n\n{error_msg}")
+                            continue
                         
                         # Check if it's an image-based PDF that couldn't be processed
                         resume_text = (result.get('raw_text') or '').lower()
-                        if "[image-based pdf]" in resume_text or "[ocr-failed]" in resume_text:
+                        if "[image-based pdf]" in resume_text or "[ocr-failed]" in resume_text or "[error]" in resume_text:
                             st.warning(f"""
                             ⚠️ **Could Not Extract Text from PDF**
                             
