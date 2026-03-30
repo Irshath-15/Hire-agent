@@ -31,15 +31,29 @@ def ocr_image_with_tesseract(image: Image.Image) -> str:
                 result = subprocess.run(['which', 'tesseract'], capture_output=True, text=True, timeout=5)
                 if result.returncode == 0:
                     pytesseract.pytesseract.pytesseract_cmd = result.stdout.strip()
+                else:
+                    # Fallback to default Linux path
+                    pytesseract.pytesseract.pytesseract_cmd = '/usr/bin/tesseract'
             except:
                 # Use default Linux path
                 pytesseract.pytesseract.pytesseract_cmd = '/usr/bin/tesseract'
         
         # Try OCR with timeout
         result = pytesseract.image_to_string(image, timeout=10)
-        return result.strip() if result else ""
+        text = result.strip() if result else ""
+        
+        if text:
+            print(f"[OCR] Successfully extracted {len(text)} characters")
+            return text
+        else:
+            print("[OCR] OCR completed but no text found")
+            return ""
+            
+    except ImportError:
+        print("[OCR] pytesseract not available - OCR disabled")
+        return ""
     except Exception as e:
-        print(f"OCR Error: {type(e).__name__}: {str(e)}")
+        print(f"[OCR] OCR failed: {type(e).__name__}: {str(e)}")
         return ""
 
 
@@ -234,7 +248,6 @@ def infer_name_from_text(raw_text: str) -> str | None:
         return None
 
     lines = [l.strip() for l in raw_text.splitlines() if l.strip()]
-    print(f"[NAME_EXTRACT] First 10 lines: {[lines[i] for i in range(min(10, len(lines)))]}")
     
     # Strategy 1: Look for explicit "Name:" or "Contact:" patterns
     for line in lines:
@@ -259,7 +272,6 @@ def infer_name_from_text(raw_text: str) -> str | None:
     # Strategy 3: First line that looks like a name (2-4 capitalized words)
     # But skip lines that are clearly not names
     for i, line in enumerate(lines[:15]):  # Check first 15 lines
-        print(f"[NAME_EXTRACT] Checking line {i}: '{line}'")
         
         # Skip common headers and non-name content
         skip_keywords = ['resume', 'cv', 'curriculum', 'vitae', 'experience', 'summary', 'objective', 
@@ -270,7 +282,6 @@ def infer_name_from_text(raw_text: str) -> str | None:
                         'university', 'college', 'school', 'institute', 'department', 'faculty']
         
         if any(skip in line.lower() for skip in skip_keywords):
-            print(f"[NAME_EXTRACT] Skipping line {i} - contains skip keyword")
             continue
         
         words = line.split()
@@ -282,14 +293,12 @@ def infer_name_from_text(raw_text: str) -> str | None:
                 if all(w[0].isupper() for w in words if w):
                     # Additional validation: not too long, no common non-name patterns
                     if len(line) <= 50 and not re.search(r'\d', line):  # No numbers
-                        print(f"[NAME_EXTRACT] Found potential name: '{line}'")
                         return line
     
     # Strategy 3.5: Look for initials + name pattern (S. DIVYA, etc.)
     for i, line in enumerate(lines[:10]):
         # Look for patterns like "S. DIVYA" or "JOHN DOE"
         if re.match(r'^[A-Z]\.\s+[A-Z]+', line):  # S. DIVYA
-            print(f"[NAME_EXTRACT] Found initial.name pattern: '{line}'")
             return line
     
     # Strategy 4: Look for Phone/Email section header
@@ -313,10 +322,8 @@ def infer_name_from_text(raw_text: str) -> str | None:
         ]
         for name in variations:
             if name and len(name.split()) <= 3:
-                print(f"[NAME_EXTRACT] Last resort - using email variation: '{name}'")
                 return name
 
-    print("[NAME_EXTRACT] No name found")
     return None
 
 
