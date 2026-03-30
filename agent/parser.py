@@ -14,9 +14,12 @@ load_dotenv()
 client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 
 def ocr_image_with_tesseract(image: Image.Image) -> str:
-    """Fast OCR with single optimized configuration."""
+    """Advanced OCR optimized for scanned documents with image preprocessing."""
     try:
         import pytesseract
+        import cv2
+        import numpy as np
+        from PIL import ImageEnhance, ImageFilter
 
         # Set tesseract path based on OS (cached)
         if not hasattr(ocr_image_with_tesseract, '_tesseract_path'):
@@ -49,17 +52,128 @@ def ocr_image_with_tesseract(image: Image.Image) -> str:
 
         pytesseract.pytesseract.tesseract_cmd = ocr_image_with_tesseract._tesseract_path
 
-        # Single fast OCR config
-        result = pytesseract.image_to_string(image, config='--psm 6', timeout=8)
-        text = result.strip() if result else ""
+        # Convert PIL to OpenCV format
+        img_cv = cv2.cvtColor(np.array(image), cv2.COLOR_RGB2BGR)
 
-        # Return any text found (even short)
-        return text
+        # Image preprocessing for scanned documents
+        processed_images = []
+
+        # Original image
+        processed_images.append(img_cv)
+
+        # Grayscale conversion
+        gray = cv2.cvtColor(img_cv, cv2.COLOR_BGR2GRAY)
+        processed_images.append(gray)
+
+        # Noise reduction
+        denoised = cv2.medianBlur(gray, 3)
+        processed_images.append(denoised)
+
+        # Contrast enhancement
+        clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8,8))
+        enhanced = clahe.apply(denoised)
+        processed_images.append(enhanced)
+
+        # Thresholding
+        _, thresh = cv2.threshold(enhanced, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+        processed_images.append(thresh)
+
+        # Morphological operations
+        kernel = np.ones((1,1), np.uint8)
+        morph = cv2.morphologyEx(thresh, cv2.MORPH_CLOSE, kernel)
+        processed_images.append(morph)
+
+        # Convert back to PIL for different scaling
+        pil_images = []
+        for img in processed_images:
+            if len(img.shape) == 2:  # Grayscale
+                pil_img = Image.fromarray(img)
+            else:  # Color
+                pil_img = Image.fromarray(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
+
+            # Create different scales
+            pil_images.append(pil_img)  # Original size
+            pil_images.append(pil_img.resize((int(pil_img.width * 1.5), int(pil_img.height * 1.5)), Image.LANCZOS))  # 1.5x scale
+            pil_images.append(pil_img.resize((int(pil_img.width * 2.0), int(pil_img.height * 2.0)), Image.LANCZOS))  # 2x scale
+
+        # OCR configurations optimized for scanned documents
+        ocr_configs = [
+            '--psm 6 -c tessedit_char_whitelist=0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz .,-@()',
+            '--psm 3 -c tessedit_char_whitelist=0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz .,-@()',
+            '--psm 1 -c tessedit_char_whitelist=0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz .,-@()',
+            '--psm 12 -c tessedit_char_whitelist=0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz .,-@()',
+            '--psm 4 -c tessedit_char_whitelist=0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz .,-@()',
+        ]
+
+        best_text = ""
+        best_confidence = 0
+
+        # Try different combinations of preprocessing and OCR configs
+        for pil_img in pil_images[:3]:  # Limit to first 3 preprocessed images for speed
+            for config in ocr_configs[:2]:  # Limit to first 2 configs for speed
+                try:
+                    # Get both text and confidence data
+                    data = pytesseract.image_to_data(pil_img, config=config, output_type=pytesseract.Output.DICT, timeout=10)
+
+                    # Calculate average confidence
+                    confidences = [int(conf) for conf in data['conf'] if conf != '-1']
+                    avg_confidence = sum(confidences) / len(confidences) if confidences else 0
+
+                    # Extract text
+                    text = ' '.join([word for word in data['text'] if word.strip()])
+
+                    # Keep the best result
+                    if avg_confidence > best_confidence and text.strip():
+                        best_text = text.strip()
+                        best_confidence = avg_confidence
+
+                        # If we have very good confidence, use it immediately
+                        if avg_confidence > 70:
+                            break
+
+                except Exception as e:
+                    continue
+
+            if best_confidence > 70:
+                break
+
+        # If no good result found, try one more time with different preprocessing
+        if best_confidence < 50 and len(best_text) < 50:
+            try:
+                # Convert to PIL and apply additional preprocessing
+                pil_original = Image.fromarray(cv2.cvtColor(img_cv, cv2.COLOR_BGR2RGB))
+
+                # Enhance contrast and sharpness
+                enhancer = ImageEnhance.Contrast(pil_original)
+                enhanced_img = enhancer.enhance(2.0)
+                enhancer = ImageEnhance.Sharpness(enhanced_img)
+                sharpened = enhancer.enhance(2.0)
+
+                # Final OCR attempt
+                final_data = pytesseract.image_to_data(sharpened, config='--psm 6', output_type=pytesseract.Output.DICT, timeout=15)
+                final_text = ' '.join([word for word in final_data['text'] if word.strip()])
+
+                if final_text.strip() and len(final_text) > len(best_text):
+                    best_text = final_text.strip()
+
+            except Exception as e:
+                pass
+
+        print(f"OCR completed with confidence: {best_confidence:.1f}%, text length: {len(best_text)}")
+        return best_text
 
     except ImportError:
-        return ""  # pytesseract not available
+        print("OpenCV or pytesseract not available for advanced OCR")
+        # Fallback to basic OCR
+        try:
+            import pytesseract
+            pytesseract.pytesseract.tesseract_cmd = ocr_image_with_tesseract._tesseract_path
+            result = pytesseract.image_to_string(image, config='--psm 6', timeout=15)
+            return result.strip() if result else ""
+        except:
+            return ""
     except Exception as e:
-        print(f"OCR failed: {e}")
+        print(f"Advanced OCR failed: {e}")
         return ""
 
 
@@ -104,41 +218,49 @@ def extract_text_from_pdf(file_path: str) -> tuple:
         print(f"Standard extraction failed: {e}")
         needs_ocr = True
 
-    # Method 2: Smart OCR - only on pages that need it
+    # Method 2: Advanced OCR for scanned documents
     ocr_text = ""
     ocr_success = False
 
     if needs_ocr:
-        print("Attempting targeted OCR extraction...")
+        print("Attempting advanced OCR extraction for scanned document...")
         try:
-            # Process pages, but limit to first 5 pages for speed
-            max_pages = min(5, len(doc))
+            # For scanned documents, process all pages with high quality
+            max_pages = min(10, len(doc))  # Allow more pages for scanned docs
 
             for page_num in range(max_pages):
                 try:
                     page = doc[page_num]
 
-                    # Quick check: does this page have any text already?
+                    # Check if page has meaningful text (not just OCR artifacts)
                     existing_text = page.get_text()
-                    if existing_text.strip() and len(existing_text) > 50:
-                        # Page already has good text, skip OCR
+                    word_count = len(existing_text.split()) if existing_text.strip() else 0
+
+                    # If page has substantial text already, use it but also try OCR for comparison
+                    if word_count > 20:
                         text += existing_text + "\n"
+                        has_any_content = True
                         continue
 
-                    # Render page to image (lower resolution for speed)
-                    pix = page.get_pixmap(matrix=fitz.Matrix(1.5, 1.5))  # Lower resolution
+                    # Render page to high-quality image for OCR
+                    print(f"Processing page {page_num + 1}/{max_pages} with high-quality OCR...")
+                    pix = page.get_pixmap(matrix=fitz.Matrix(2.5, 2.5), alpha=False)  # Higher resolution for scanned docs
                     img_data = pix.tobytes("png")
                     img = Image.open(io.BytesIO(img_data))
 
-                    # Fast OCR with single config
+                    # Advanced OCR optimized for scanned documents
                     page_ocr = ocr_image_with_tesseract(img)
-                    if page_ocr.strip():
+
+                    if page_ocr.strip() and len(page_ocr.split()) > 5:  # Require meaningful content
                         ocr_text += page_ocr + "\n"
                         ocr_success = True
                         has_any_content = True
+                        print(f"✓ Page {page_num + 1}: extracted {len(page_ocr)} characters")
+                    else:
+                        print(f"⚠ Page {page_num + 1}: insufficient OCR text ({len(page_ocr) if page_ocr else 0} chars)")
 
                 except Exception as page_err:
-                    print(f"Page {page_num} OCR failed: {page_err}")
+                    print(f"✗ Page {page_num + 1} OCR failed: {page_err}")
                     continue
 
         except Exception as e:
@@ -149,27 +271,59 @@ def extract_text_from_pdf(file_path: str) -> tuple:
     except:
         pass
 
-    # Combine results
-    final_text = text + ocr_text if text else ocr_text
+    # Combine and clean results
+    final_text = ""
+    if text.strip():
+        final_text += text
+    if ocr_text.strip():
+        if final_text:
+            final_text += "\n\n--- OCR Content ---\n\n"
+        final_text += ocr_text
 
     if final_text.strip():
+        print(f"✓ Total extracted text: {len(final_text)} characters from {max_pages if needs_ocr else sample_pages} pages")
         return final_text.strip(), ocr_success
     else:
-        # Last resort: try basic extraction on all pages
+        # Last resort: try all possible extraction methods
+        print("Attempting final fallback extraction methods...")
         try:
             doc = fitz.open(file_path)
             fallback_text = ""
+
             for page in doc:
-                page_text = page.get_text()
-                if page_text.strip():
-                    fallback_text += page_text + "\n"
+                # Try different extraction methods
+                methods = [
+                    lambda p: p.get_text("text"),
+                    lambda p: p.get_text("blocks"),
+                    lambda p: p.get_text("dict")
+                ]
+
+                for method in methods:
+                    try:
+                        page_text = method(page)
+                        if isinstance(page_text, str) and page_text.strip():
+                            fallback_text += page_text + "\n"
+                            break
+                        elif isinstance(page_text, list) and page_text:
+                            # Handle block format
+                            for block in page_text:
+                                if isinstance(block, dict) and 'text' in block:
+                                    fallback_text += block['text'] + "\n"
+                            if fallback_text.strip():
+                                break
+                    except:
+                        continue
+
             doc.close()
             if fallback_text.strip():
+                print(f"✓ Fallback extraction successful: {len(fallback_text)} characters")
                 return fallback_text.strip(), False
-        except:
-            pass
 
-        return "[ERROR] Could not extract any text from PDF", False
+        except Exception as e:
+            print(f"Fallback extraction failed: {e}")
+
+        print("✗ All extraction methods failed")
+        return "[ERROR] Could not extract any readable text from PDF - document may be corrupted, password-protected, or contain only images", True
 
 def extract_text_from_docx(file_path: str) -> tuple:
     """Extract text from DOCX file - returns actual document text."""
