@@ -109,11 +109,11 @@ def ocr_image_with_tesseract(image: Image.Image) -> str:
         best_confidence = 0
 
         # Try different combinations of preprocessing and OCR configs
-        for pil_img in pil_images[:3]:  # Limit to first 3 preprocessed images for speed
-            for config in ocr_configs[:2]:  # Limit to first 2 configs for speed
+        for pil_img in pil_images[:1]:  # Limit to first 1 preprocessed image for speed
+            for config in ocr_configs[:1]:  # Limit to first 1 config for speed
                 try:
                     # Get both text and confidence data
-                    data = pytesseract.image_to_data(pil_img, config=config, output_type=pytesseract.Output.DICT, timeout=10)
+                    data = pytesseract.image_to_data(pil_img, config=config, output_type=pytesseract.Output.DICT, timeout=5)
 
                     # Calculate average confidence
                     confidences = [int(conf) for conf in data['conf'] if conf != '-1']
@@ -168,7 +168,7 @@ def ocr_image_with_tesseract(image: Image.Image) -> str:
         try:
             import pytesseract
             pytesseract.pytesseract.tesseract_cmd = ocr_image_with_tesseract._tesseract_path
-            result = pytesseract.image_to_string(image, config='--psm 6', timeout=15)
+            result = pytesseract.image_to_string(image, config='--psm 6', timeout=5)
             return result.strip() if result else ""
         except:
             return ""
@@ -482,13 +482,23 @@ def infer_name_from_text(raw_text: str) -> str | None:
             if candidate and 2 < len(candidate.split()) <= 5:
                 return candidate
     
+    # Strategy 1.5: LinkedIn profile URL
+    for line in lines:
+        if 'linkedin.com/in/' in line.lower():
+            match = re.search(r'linkedin\.com/in/([a-zA-Z0-9-]+)', line, re.I)
+            if match:
+                name = match.group(1).replace('-', ' ').replace('_', ' ').title()
+                if len(name.split()) <= 4:
+                    return name
+    
     # Strategy 2: Email prefix often contains name (PRIORITIZE THIS)
     email_match = re.search(r"([\w.%+-]+)@", raw_text)
     if email_match:
         local = email_match.group(1)
-        # Convert email to name: john.doe → John Doe, john_silva → John Silva
-        if '_' in local or '.' in local:
-            name = re.sub(r'[._]', ' ', local).title()
+        # Convert email to name: john.doe → John Doe, john_silva → John Silva, john.doe.smith → John Doe Smith
+        name_parts = re.split(r'[._]', local)
+        if len(name_parts) >= 2:
+            name = ' '.join(p.title() for p in name_parts if p)
             if name and len(name.split()) <= 5:
                 print(f"[NAME_EXTRACT] Using email-derived name: '{name}'")
                 return name
