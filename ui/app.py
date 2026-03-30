@@ -695,40 +695,38 @@ with tab3:
             if active_job_ids and st.button(
                 "Start screening", use_container_width=True
             ):
-
-
-    # Custom loader CSS (inject once) and hide Streamlit spinner
-    st.markdown("""
-    <style>
-    /* Hide Streamlit's default spinner */
-    .stSpinner, .stSpinner > div { display: none !important; }
-    /* Custom loader */
-    .loader {
-        width: 50px;
-        aspect-ratio: 1;
-        border-radius: 50%;
-        background: #514b82;
-        -webkit-mask: radial-gradient(circle closest-side at 50% 40%,#0000 94%, #000);
-        transform-origin: 50% 40%;
-        animation: l25 1s infinite linear;
-        margin: 0 auto 20px auto;
-        z-index: 9999;
-        position: relative;
-    }
-    @keyframes l25 {
-        100% {transform: rotate(1turn)}
-    }
-    </style>
-    """, unsafe_allow_html=True)
-    steps = [
-        "Uploading file",
-        "Detecting file type",
-        "Extracting text (PDF/OCR)",
-        "Preprocessing text",
-        "AI parsing (LLM)",
-        "Scoring and ranking",
-        "Saving results"
-    ]
+                # Custom loader CSS (inject once) and hide Streamlit spinner
+                st.markdown("""
+                <style>
+                /* Hide Streamlit's default spinner */
+                .stSpinner, .stSpinner > div { display: none !important; }
+                /* Custom loader */
+                .loader {
+                    width: 50px;
+                    aspect-ratio: 1;
+                    border-radius: 50%;
+                    background: #514b82;
+                    -webkit-mask: radial-gradient(circle closest-side at 50% 40%,#0000 94%, #000);
+                    transform-origin: 50% 40%;
+                    animation: l25 1s infinite linear;
+                    margin: 0 auto 20px auto;
+                    z-index: 9999;
+                    position: relative;
+                }
+                @keyframes l25 {
+                    100% {transform: rotate(1turn)}
+                }
+                </style>
+                """, unsafe_allow_html=True)
+                steps = [
+                    "Uploading file",
+                    "Detecting file type",
+                    "Extracting text (PDF/OCR)",
+                    "Preprocessing text",
+                    "AI parsing (LLM)",
+                    "Scoring and ranking",
+                    "Saving results"
+                ]
 
                 # Create a placeholder for each file's progress/result
                 file_placeholders = [st.empty() for _ in valid_files]
@@ -1016,9 +1014,9 @@ with tab3:
                         """, unsafe_allow_html=True)
 
                     except Exception as e:
-                        st.error(f"Failed: {file.name} — {str(e)}")
+                        file_placeholders[i].error(f"Failed: {file.name} — {str(e)}")
 
-                spinner_box.empty()
+                # Clean up loader/steps placeholders if any remain
 
                 st.markdown("""
                     <div style='background:#1a1f2e; border-radius:12px; padding:12px;
