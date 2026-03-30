@@ -44,7 +44,7 @@ def ocr_image_with_tesseract(image: Image.Image) -> str:
 
 
 def extract_text_from_pdf(file_path: str) -> tuple:
-    """Extract text from PDF. Handles both searchable and image-based PDFs with Tesseract OCR."""
+    """Extract text from PDF. Handles searchable PDFs. Image-based PDFs need conversion."""
     try:
         doc = fitz.open(file_path)
     except Exception as e:
@@ -53,50 +53,20 @@ def extract_text_from_pdf(file_path: str) -> tuple:
     
     text = ""
     image_based = False
-    has_searchable_content = False
     
-    # First try to extract text normally
+    # Extract searchable text
     try:
         for page in doc:
             page_text = page.get_text()
             if page_text.strip():
                 text += page_text + "\n"
-                has_searchable_content = True
     except Exception as e:
         print(f"PDF text extraction error: {e}")
     
-    # If no searchable text found, try OCR on rendered images
-    if not has_searchable_content:
+    # If no text found, it's likely image-based
+    if not text.strip():
         image_based = True
-        ocr_attempted = False
-        
-        try:
-            for page_num, page in enumerate(doc):
-                try:
-                    # Render page to image using fitz
-                    pix = page.get_pixmap(matrix=fitz.Matrix(2, 2))
-                    img_data = pix.tobytes("ppm")
-                    img = Image.open(io.BytesIO(img_data))
-                    
-                    # OCR the image using Tesseract via pytesseract
-                    ocr_attempted = True
-                    ocr_text = ocr_image_with_tesseract(img)
-                    if ocr_text.strip():
-                        text += ocr_text + "\n"
-                except Exception as page_err:
-                    print(f"Page {page_num} OCR error: {page_err}")
-                    continue
-                    
-        except Exception as e:
-            print(f"PDF OCR loop error: {e}")
-            text = ""
-        
-        # If still no text extracted
-        if image_based and not text.strip():
-            if ocr_attempted:
-                text = "[IMAGE-BASED PDF] OCR processing failed. Please try: 1) Converting PDF to searchable format, 2) Uploading .docx or .txt instead, 3) Using iLovePDF or similar tool to convert"
-            else:
-                text = "[IMAGE-BASED PDF] Could not extract text using OCR. Please upload a searchable/text-based PDF instead."
+        text = "[SCANNED PDF] This PDF is image-based and requires OCR conversion.\n\n⚙️ QUICK FIX - Use ONE of these FREE tools (takes 30 seconds):\n\n1. ILovePDF.com - Upload → Download searchable PDF\n2. Smallpdf.com - Compress & make searchable\n3. CloudConvert.com - Convert to searchable PDF\n\nOR:\n- Convert PDF to DOCX/Word format\n- Copy-paste text into a .txt or .doc file\n\nThen re-upload the converted file."
     
     try:
         doc.close()
