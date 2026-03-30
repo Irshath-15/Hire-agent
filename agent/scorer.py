@@ -60,15 +60,17 @@ Candidate Profile:
 
     try:
         result = json.loads(clean)
-        result["overall_score"] = float(result.get("overall_score", 0))
-        result["skills_match"] = float(result.get("skills_match", 0))
-        result["experience_fit"] = float(result.get("experience_fit", 0))
+        # Convert string numbers to floats, handle null values
+        result["overall_score"] = float(result.get("overall_score", 0) or 0)
+        result["skills_match"] = float(result.get("skills_match", 0) or 0)
+        result["experience_fit"] = float(result.get("experience_fit", 0) or 0)
         return result
-    except json.JSONDecodeError:
+    except (json.JSONDecodeError, ValueError, TypeError) as e:
+        print(f"[SCORER] JSON/conversion error: {e}, raw: {clean[:200]}")
         return {
-            "overall_score": 0,
-            "skills_match": 0,
-            "experience_fit": 0,
+            "overall_score": 0.0,
+            "skills_match": 0.0,
+            "experience_fit": 0.0,
             "strengths": "Could not evaluate",
             "weaknesses": "Could not evaluate",
             "decision": "REVIEW",

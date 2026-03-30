@@ -16,6 +16,17 @@ from dotenv import load_dotenv
 load_dotenv()
 
 
+def sanitize_numeric(value, default=None):
+    """Convert any value to float or None safely."""
+    if value is None or value == 'null' or value == '':
+        return default
+    try:
+        return float(value)
+    except (ValueError, TypeError):
+        print(f"[PIPELINE] Could not convert '{value}' to float, using {default}")
+        return default
+
+
 def trigger_agent_on_upload(job_id: int, file_path: str) -> dict:
     """Entry point for HR upload trigger (Google Drive/Gmail/ATS Webhook)."""
     return run_hiring_pipeline(job_id, file_path)
@@ -172,20 +183,29 @@ def run_hiring_pipeline(job_id: int, file_path: str) -> dict:
             # Step 4: Decision Engine
             final_decision = decision_engine(score_data, parsed)
 
+            # Sanitize numeric values to prevent database errors
+            print(f"[PIPELINE] Raw score_data: {score_data}")
+            score_val = sanitize_numeric(score_data.get('overall_score'), 0)
+            skills_match_val = sanitize_numeric(score_data.get('skills_match'), 0)
+            experience_fit_val = sanitize_numeric(score_data.get('experience_fit'), 0)
+            exp_years_val = sanitize_numeric(parsed.get('experience_years'), None)
+            
+            print(f"[PIPELINE] Sanitized scores: overall={score_val}, skills={skills_match_val}, exp_fit={experience_fit_val}")
+
             # Create/update candidate record
             candidate = Candidate(
                 name=parsed.get('name') or 'Unknown',
                 email=parsed.get('email') or 'unknown@email.com',
                 phone=parsed.get('phone'),
                 current_role=parsed.get('current_role'),
-                experience_years=parsed.get('experience_years'),
+                experience_years=exp_years_val,
                 skills=parsed.get('skills'),
                 education=parsed.get('education'),
                 red_flags=parsed.get('red_flags'),
                 raw_text=parsed.get('raw_text'),
-                score=score_data.get('overall_score', 0),
-                skills_match=score_data.get('skills_match', 0),
-                experience_fit=score_data.get('experience_fit', 0),
+                score=score_val,
+                skills_match=skills_match_val,
+                experience_fit=experience_fit_val,
                 strengths=score_data.get('strengths'),
                 weaknesses=score_data.get('weaknesses'),
                 status=final_decision

@@ -202,14 +202,18 @@ Resume text:
         for field in required_fields:
             if field not in result:
                 result[field] = None
+            # Convert string 'null' to Python None
+            elif result[field] == 'null' or result[field] == 'None':
+                result[field] = None
         
         # Force name to be the inferred one if available
         if inferred_name:
             result["name"] = inferred_name
         
+        print(f"[PARSER] Parsed JSON successfully: name={result.get('name')}, email={result.get('email')}")
         return result
     except json.JSONDecodeError as e:
-        print(f"JSON parse error: {e}, raw response: {raw[:200]}")
+        print(f"[PARSER] JSON parse error: {e}, raw response: {raw[:200]}")
         return {
             "name": inferred_name,
             "email": None,
@@ -354,21 +358,26 @@ def simple_extract(raw_text: str) -> dict:
         'red_flags': None
     }
     
-    # Try to find email
-    email_match = re.search(r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}', raw_text)
-    if email_match:
-        result['email'] = email_match.group(0)
-    
-    # Try to find phone
-    phone_match = re.search(r'(?:\+\d{1,3}[-.]?)?\(?\d{3}\)?[-.]?\d{3}[-.]?\d{4}', raw_text)
-    if phone_match:
-        result['phone'] = phone_match.group(0)
-    
-    # Try to find name from first line or contact section
-    lines = [l.strip() for l in raw_text.split('\n') if l.strip()]
-    if lines:
-        first_line = lines[0]
-        if not any(x in first_line.lower() for x in ['phone', 'email', 'address', 'linkedin']):
-            result['name'] = first_line[:100]  # Use first line as name if it looks reasonable
+    try:
+        # Try to find email
+        email_match = re.search(r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}', raw_text)
+        if email_match:
+            result['email'] = email_match.group(0)
+        
+        # Try to find phone
+        phone_match = re.search(r'(?:\+\d{1,3}[-.]?)?\(?\d{3}\)?[-.]?\d{3}[-.]?\d{4}', raw_text)
+        if phone_match:
+            result['phone'] = phone_match.group(0)
+        
+        # Try to find name from first line or contact section
+        lines = [l.strip() for l in raw_text.split('\n') if l.strip()]
+        if lines:
+            first_line = lines[0]
+            if not any(x in first_line.lower() for x in ['phone', 'email', 'address', 'linkedin']):
+                result['name'] = first_line[:100]  # Use first line as name if it looks reasonable
+        
+        print(f"[PARSER] Simple extract: name={result.get('name')}, email={result.get('email')}")
+    except Exception as e:
+        print(f"[PARSER] Simple extract error: {e}")
     
     return result
