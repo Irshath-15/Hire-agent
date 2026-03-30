@@ -44,7 +44,7 @@ def ocr_image_with_tesseract(image: Image.Image) -> str:
 
 
 def extract_text_from_pdf(file_path: str) -> tuple:
-    """Extract text from PDF. Handles searchable PDFs. Image-based PDFs need conversion."""
+    """Extract text from PDF. Handles both searchable and image-based PDFs with Tesseract OCR."""
     try:
         doc = fitz.open(file_path)
     except Exception as e:
@@ -53,20 +53,40 @@ def extract_text_from_pdf(file_path: str) -> tuple:
     
     text = ""
     image_based = False
+    has_searchable_content = False
     
-    # Extract searchable text
+    # First try to extract text normally
     try:
         for page in doc:
             page_text = page.get_text()
             if page_text.strip():
                 text += page_text + "\n"
+                has_searchable_content = True
     except Exception as e:
         print(f"PDF text extraction error: {e}")
     
-    # If no text found, it's likely image-based
-    if not text.strip():
+    # If no searchable text found, try OCR on rendered images
+    if not has_searchable_content:
         image_based = True
-        text = "[SCANNED PDF] This PDF is image-based and requires OCR conversion.\n\n⚙️ QUICK FIX - Use ONE of these FREE tools (takes 30 seconds):\n\n1. ILovePDF.com - Upload → Download searchable PDF\n2. Smallpdf.com - Compress & make searchable\n3. CloudConvert.com - Convert to searchable PDF\n\nOR:\n- Convert PDF to DOCX/Word format\n- Copy-paste text into a .txt or .doc file\n\nThen re-upload the converted file."
+        
+        try:
+            for page_num, page in enumerate(doc):
+                try:
+                    # Render page to image using fitz
+                    pix = page.get_pixmap(matrix=fitz.Matrix(2, 2))
+                    img_data = pix.tobytes("ppm")
+                    img = Image.open(io.BytesIO(img_data))
+                    
+                    # OCR the image using Tesseract via pytesseract
+                    ocr_text = ocr_image_with_tesseract(img)
+                    if ocr_text.strip():
+                        text += ocr_text + "\n"
+                except Exception as page_err:
+                    print(f"Page {page_num} OCR error: {page_err}")
+                    continue
+                    
+        except Exception as e:
+            print(f"PDF OCR loop error: {e}")
     
     try:
         doc.close()
@@ -76,12 +96,27 @@ def extract_text_from_pdf(file_path: str) -> tuple:
     return text.strip(), image_based
 
 def extract_text_from_docx(file_path: str) -> tuple:
-    """Extract text from DOCX file."""
-    doc = docx.Document(file_path)
-    text = ""
-    for para in doc.paragraphs:
-        text += para.text + "\n"
-    return text.strip(), False  # DOCX is never image-based
+    """Extract text from DOCX file - returns actual document text."""
+    try:
+        doc = docx.Document(file_path)
+        text = ""
+        
+        # Extract from paragraphs
+        for para in doc.paragraphs:
+            if para.text.strip():
+                text += para.text + "\n"
+        
+        # Extract from tables if present
+        for table in doc.tables:
+            for row in table.rows:
+                for cell in row.cells:
+                    if cell.text.strip():
+                        text += cell.text + "\n"
+        
+        return text.strip(), False  # DOCX is never image-based
+    except Exception as e:
+        print(f"DOCX extraction error: {e}")
+        return f"[ERROR] Could not read DOCX: {str(e)}", False
 
 def extract_text(file_path: str) -> tuple:
     """Extract text from various file formats. Returns (text, is_image_based)."""
@@ -106,10 +141,13 @@ def extract_text(file_path: str) -> tuple:
         raise ValueError(f"Unsupported file type: {ext}")
 
 def parse_resume_with_ai(raw_text: str) -> dict:
+    # First try to extract name before AI processing
+    inferred_name = infer_name_from_text(raw_text)
+    
     prompt = f"""You are a resume parser. Extract information from this resume and return ONLY a valid JSON object with no markdown, no code blocks, and no explanation. Return ONLY the JSON.
 
 {{
-  "name": "full name or null",
+  "name": "{inferred_name or 'null'}",
   "email": "email address or null",
   "phone": "phone number or null",
   "current_role": "most recent job title or null",
@@ -118,6 +156,9 @@ def parse_resume_with_ai(raw_text: str) -> dict:
   "education": "highest qualification and institution or null",
   "red_flags": "any employment gaps, inconsistencies, vague roles — or null if none"
 }}
+
+IMPORTANT: Do NOT change or generate the name field. Keep it as: {inferred_name or 'null'}
+Only extract email, phone, skills, experience, education, and red_flags from the resume text.
 
 Resume text:
 {raw_text}"""
@@ -133,7 +174,7 @@ Resume text:
         print(f"Warning: Parser API timeout: {e}")
         # Return fallback with inferred data
         return {
-            "name": infer_name_from_text(raw_text),
+            "name": inferred_name,
             "email": None,
             "phone": None,
             "current_role": None,
@@ -161,11 +202,16 @@ Resume text:
         for field in required_fields:
             if field not in result:
                 result[field] = None
+        
+        # Force name to be the inferred one if available
+        if inferred_name:
+            result["name"] = inferred_name
+        
         return result
     except json.JSONDecodeError as e:
         print(f"JSON parse error: {e}, raw response: {raw[:200]}")
         return {
-            "name": infer_name_from_text(raw_text),
+            "name": inferred_name,
             "email": None,
             "phone": None,
             "current_role": None,
@@ -176,35 +222,53 @@ Resume text:
         }
 
 def infer_name_from_text(raw_text: str) -> str | None:
-    """Try to infer candidate name from raw resume text."""
+    """Try to infer candidate name from raw resume text - improved extraction."""
     import re
 
     if not raw_text or not raw_text.strip():
         return None
 
-    # 1) Look for explicit "Name:" line
-    m = re.search(r"^\s*name\s*[:\-]\s*([A-Za-zÀ-ÖØ-öø-ÿ .,'-]{2,80})$", raw_text, re.I | re.M)
-    if m:
-        candidate = m.group(1).strip()
-        if candidate and len(candidate.split()) <= 5:
-            return candidate
-
-    # 2) Take first non-empty line, avoid headings and generic lines
-    for line in [l.strip() for l in raw_text.splitlines() if l.strip()]:
-        lc = line.lower()
-        if any(w in lc for w in ["resume", "curriculum", "email", "phone", "experience", "summary", "objective", "profile"]):
+    lines = [l.strip() for l in raw_text.splitlines() if l.strip()]
+    
+    # Strategy 1: Look for explicit "Name:" or "Contact:" patterns
+    for line in lines:
+        # Match patterns like "Name: John Doe" or "JOHN DOE"
+        m = re.search(r"^\s*(?:name|candidate|applicant)\s*[:\-]\s*([A-Za-zÀ-ÖØ-öø-ÿ\s.,'-]+?)(?:\s*$|[,\|])", line, re.I)
+        if m:
+            candidate = m.group(1).strip()
+            if candidate and 2 < len(candidate.split()) <= 5:
+                return candidate
+    
+    # Strategy 2: Email prefix often contains name
+    email_match = re.search(r"([\w.%+-]+)@", raw_text)
+    if email_match:
+        local = email_match.group(1)
+        # Convert email to name: john.doe → John Doe, john_silva → John Silva
+        if '_' in local or '.' in local:
+            name = re.sub(r'[._]', ' ', local).title()
+            if name and len(name.split()) <= 5:
+                return name
+    
+    # Strategy 3: First line that looks like a name (2-4 capitalized words)
+    for line in lines[:10]:  # Check first 10 lines only
+        # Skip common headers
+        if any(skip in line.lower() for skip in ['resume', 'cv', 'curriculum', 'experience', 'summary', 'objective', 'email', 'phone']):
             continue
+        
         words = line.split()
-        if 1 < len(words) <= 5 and all(re.match(r"^[A-Za-zÀ-ÖØ-öø-ÿ.'-]+$", w) for w in words):
-            return line
-        break
-
-    # 3) Use email local part if available
-    m2 = re.search(r"([\w.%+-]+)@([\w.-]+\.[A-Za-z]{2,})", raw_text)
-    if m2:
-        local = m2.group(1).replace('.', ' ').replace('_', ' ').title()
-        if local and len(local.split()) <= 5:
-            return local
+        if len(words) > 0 and len(words) <= 4:
+            # Check if words look like a name (start with capital, all alphabetic)
+            if all(re.match(r"^[A-Za-zÀ-ÖØ-öø-ÿ'-]+$", w) for w in words):
+                return line
+    
+    # Strategy 4: Look for Phone/Email section header
+    for i, line in enumerate(lines[:20]):
+        if 'phone' in line.lower() or 'email' in line.lower():
+            # Name is usually above contact info
+            if i > 0:
+                prev_line = lines[i-1]
+                if len(prev_line.split()) <= 4 and all(w[0].isupper() for w in prev_line.split() if w):
+                    return prev_line
 
     return None
 
@@ -227,11 +291,19 @@ def parse_resume(file_path: str) -> dict:
             'is_image_based': True
         }
 
+    # First, try to extract name BEFORE AI parsing
+    inferred_name = infer_name_from_text(raw_text)
+    
+    # Then parse with AI
     parsed = parse_resume_with_ai(raw_text)
     parsed['raw_text'] = raw_text
     parsed['is_image_based'] = is_image_based
 
-    if not parsed.get('name'):
+    # Use inferred name if AI couldn't find one
+    if not parsed.get('name') and inferred_name:
+        parsed['name'] = inferred_name
+    elif not parsed.get('name'):
+        # Second attempt at inference if both failed
         inferred = infer_name_from_text(raw_text)
         if inferred:
             parsed['name'] = inferred
