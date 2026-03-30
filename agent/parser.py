@@ -200,11 +200,12 @@ Resume text:
         # Ensure all required fields exist
         required_fields = ["name", "email", "phone", "current_role", "experience_years", "skills", "education", "red_flags"]
         for field in required_fields:
-            if field not in result:
+            value = result.get(field)
+            # Convert string 'null'/'None' to Python None
+            if value is None or value == 'null' or value == 'None' or value == '':
                 result[field] = None
-            # Convert string 'null' to Python None
-            elif result[field] == 'null' or result[field] == 'None':
-                result[field] = None
+            else:
+                result[field] = value
         
         # Force name to be the inferred one if available
         if inferred_name:

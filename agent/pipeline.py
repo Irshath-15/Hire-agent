@@ -18,13 +18,20 @@ load_dotenv()
 
 def sanitize_numeric(value, default=None):
     """Convert any value to float or None safely."""
-    if value is None or value == 'null' or value == '':
+    if value is None or value == 'null' or value == 'None' or value == '':
         return default
     try:
         return float(value)
     except (ValueError, TypeError):
         print(f"[PIPELINE] Could not convert '{value}' to float, using {default}")
         return default
+
+
+def sanitize_string(value, default=''):
+    """Convert any value to string safely, handling null."""
+    if value is None or value == 'null' or value == 'None':
+        return default
+    return str(value).strip()
 
 
 def trigger_agent_on_upload(job_id: int, file_path: str) -> dict:
@@ -183,31 +190,47 @@ def run_hiring_pipeline(job_id: int, file_path: str) -> dict:
             # Step 4: Decision Engine
             final_decision = decision_engine(score_data, parsed)
 
-            # Sanitize numeric values to prevent database errors
+            # Sanitize ALL values to prevent database errors
+            print(f"[PIPELINE] Raw parsed data: {parsed}")
             print(f"[PIPELINE] Raw score_data: {score_data}")
+            
+            # Sanitize string fields
+            name_val = sanitize_string(parsed.get('name'), 'Unknown')
+            email_val = sanitize_string(parsed.get('email'), 'unknown@email.com')
+            phone_val = sanitize_string(parsed.get('phone'), None) or None
+            current_role_val = sanitize_string(parsed.get('current_role'), None) or None
+            skills_val = sanitize_string(parsed.get('skills'), None) or None
+            education_val = sanitize_string(parsed.get('education'), None) or None
+            red_flags_val = sanitize_string(parsed.get('red_flags'), None) or None
+            
+            # Sanitize numeric fields
             score_val = sanitize_numeric(score_data.get('overall_score'), 0)
             skills_match_val = sanitize_numeric(score_data.get('skills_match'), 0)
             experience_fit_val = sanitize_numeric(score_data.get('experience_fit'), 0)
             exp_years_val = sanitize_numeric(parsed.get('experience_years'), None)
             
-            print(f"[PIPELINE] Sanitized scores: overall={score_val}, skills={skills_match_val}, exp_fit={experience_fit_val}")
+            # Sanitize other fields
+            strengths_val = sanitize_string(score_data.get('strengths'), None) or None
+            weaknesses_val = sanitize_string(score_data.get('weaknesses'), None) or None
+            
+            print(f"[PIPELINE] Sanitized: name={name_val}, email={email_val}, score={score_val}")
 
-            # Create/update candidate record
+            # Create/update candidate record with sanitized values
             candidate = Candidate(
-                name=parsed.get('name') or 'Unknown',
-                email=parsed.get('email') or 'unknown@email.com',
-                phone=parsed.get('phone'),
-                current_role=parsed.get('current_role'),
+                name=name_val,
+                email=email_val,
+                phone=phone_val,
+                current_role=current_role_val,
                 experience_years=exp_years_val,
-                skills=parsed.get('skills'),
-                education=parsed.get('education'),
-                red_flags=parsed.get('red_flags'),
+                skills=skills_val,
+                education=education_val,
+                red_flags=red_flags_val,
                 raw_text=parsed.get('raw_text'),
                 score=score_val,
                 skills_match=skills_match_val,
                 experience_fit=experience_fit_val,
-                strengths=score_data.get('strengths'),
-                weaknesses=score_data.get('weaknesses'),
+                strengths=strengths_val,
+                weaknesses=weaknesses_val,
                 status=final_decision
             )
 
