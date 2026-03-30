@@ -114,11 +114,26 @@ def parse_resume_with_ai(raw_text: str) -> dict:
 Resume text:
 {raw_text}"""
 
-    response = client.chat.completions.create(
-        model="llama-3.3-70b-versatile",
-        max_tokens=1000,
-        messages=[{"role": "user", "content": prompt}]
-    )
+    try:
+        response = client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            max_tokens=800,
+            timeout=15.0,
+            messages=[{"role": "user", "content": prompt}]
+        )
+    except Exception as e:
+        print(f"Warning: Parser API timeout: {e}")
+        # Return fallback with inferred data
+        return {
+            "name": infer_name_from_text(raw_text),
+            "email": None,
+            "phone": None,
+            "current_role": None,
+            "experience_years": None,
+            "skills": None,
+            "education": None,
+            "red_flags": None
+        }
 
     raw = response.choices[0].message.content
     
@@ -142,7 +157,7 @@ Resume text:
     except json.JSONDecodeError as e:
         print(f"JSON parse error: {e}, raw response: {raw[:200]}")
         return {
-            "name": None,
+            "name": infer_name_from_text(raw_text),
             "email": None,
             "phone": None,
             "current_role": None,

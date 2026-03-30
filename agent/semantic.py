@@ -40,15 +40,23 @@ def embed_text(text: str) -> str:
 
 
 def similarity(text_a: str, text_b: str) -> float:
-    # Use OpenAI embeddings for better similarity if available
-    if OpenAI and os.getenv('OPENAI_API_KEY'):
-        try:
-            emb_a = openai_embed_text(text_a)
-            emb_b = openai_embed_text(text_b)
-            return vector_similarity(emb_a, emb_b)
-        except Exception:
-            pass
-    # fallback to TF-IDF
+    """Calculate text similarity with timeout fallback. Fast fallback for speed."""
+    if not text_a or not text_b:
+        return 0.0
+    
+    try:
+        # Try OpenAI embeddings first if available
+        if OpenAI and os.getenv('OPENAI_API_KEY'):
+            try:
+                emb_a = openai_embed_text(text_a)
+                emb_b = openai_embed_text(text_b)
+                return vector_similarity(emb_a, emb_b)
+            except Exception:
+                pass
+    except:
+        pass
+    
+    # Fast fallback: use simple vector similarity (no API calls)
     vec_a = _text_to_vector(text_a)
     vec_b = _text_to_vector(text_b)
     return cosine_similarity(vec_a, vec_b)

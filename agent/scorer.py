@@ -35,11 +35,25 @@ Candidate Profile:
 - Education: {candidate.get('education')}
 - Red Flags: {candidate.get('red_flags')}"""
 
-    response = client.chat.completions.create(
-        model="llama-3.3-70b-versatile",
-        max_tokens=1000,
-        messages=[{"role": "user", "content": prompt}]
-    )
+    try:
+        response = client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            max_tokens=800,
+            timeout=15.0,
+            messages=[{"role": "user", "content": prompt}]
+        )
+    except Exception as e:
+        print(f"Warning: Scoring API timeout or error: {e}")
+        # Return fast fallback score
+        return {
+            "overall_score": 60,
+            "skills_match": 50,
+            "experience_fit": 50,
+            "strengths": "Candidate profile received",
+            "weaknesses": "Extended evaluation needed",
+            "decision": "REVIEW",
+            "decision_reason": "Pending detailed evaluation"
+        }
 
     raw = response.choices[0].message.content
     clean = raw.replace("```json", "").replace("```", "").strip()
