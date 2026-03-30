@@ -255,16 +255,25 @@ def infer_name_from_text(raw_text: str) -> str | None:
                 return name
     
     # Strategy 3: First line that looks like a name (2-4 capitalized words)
-    for line in lines[:10]:  # Check first 10 lines only
-        # Skip common headers
-        if any(skip in line.lower() for skip in ['resume', 'cv', 'curriculum', 'experience', 'summary', 'objective', 'email', 'phone']):
+    # But skip lines that are clearly not names
+    for i, line in enumerate(lines[:15]):  # Check first 15 lines
+        # Skip common headers and non-name content
+        skip_keywords = ['resume', 'cv', 'curriculum', 'vitae', 'experience', 'summary', 'objective', 
+                        'email', 'phone', 'address', 'linkedin', 'objective', 'skills', 'education',
+                        'certifications', 'awards', 'projects', 'languages', 'level', 'contest',
+                        'achievement', 'technical', 'additional', 'information']
+        
+        if any(skip in line.lower() for skip in skip_keywords):
             continue
         
         words = line.split()
-        if len(words) > 0 and len(words) <= 4:
-            # Check if words look like a name (start with capital, all alphabetic)
+        
+        # Good candidate if: 1-4 words, all start with capital, all alphabetic
+        if 1 <= len(words) <= 4:
             if all(re.match(r"^[A-Za-zÀ-ÖØ-öø-ÿ'-]+$", w) for w in words):
-                return line
+                # Extra check: if it looks like a real name pattern
+                if all(w[0].isupper() for w in words if w):
+                    return line
     
     # Strategy 4: Look for Phone/Email section header
     for i, line in enumerate(lines[:20]):
