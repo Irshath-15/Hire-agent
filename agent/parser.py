@@ -234,6 +234,7 @@ def infer_name_from_text(raw_text: str) -> str | None:
         return None
 
     lines = [l.strip() for l in raw_text.splitlines() if l.strip()]
+    print(f"[NAME_EXTRACT] First 10 lines: {[lines[i] for i in range(min(10, len(lines)))]}")
     
     # Strategy 1: Look for explicit "Name:" or "Contact:" patterns
     for line in lines:
@@ -257,23 +258,31 @@ def infer_name_from_text(raw_text: str) -> str | None:
     # Strategy 3: First line that looks like a name (2-4 capitalized words)
     # But skip lines that are clearly not names
     for i, line in enumerate(lines[:15]):  # Check first 15 lines
+        print(f"[NAME_EXTRACT] Checking line {i}: '{line}'")
+        
         # Skip common headers and non-name content
         skip_keywords = ['resume', 'cv', 'curriculum', 'vitae', 'experience', 'summary', 'objective', 
                         'email', 'phone', 'address', 'linkedin', 'objective', 'skills', 'education',
                         'certifications', 'awards', 'projects', 'languages', 'level', 'contest',
-                        'achievement', 'technical', 'additional', 'information']
+                        'achievement', 'technical', 'additional', 'information', 'national', 'project',
+                        'bachelor', 'technology', 'information', 'engineering', 'computer', 'science',
+                        'university', 'college', 'school', 'institute', 'department', 'faculty']
         
         if any(skip in line.lower() for skip in skip_keywords):
+            print(f"[NAME_EXTRACT] Skipping line {i} - contains skip keyword")
             continue
         
         words = line.split()
         
-        # Good candidate if: 1-4 words, all start with capital, all alphabetic
+        # Good candidate if: 1-4 words, all start with capital, all alphabetic, no numbers
         if 1 <= len(words) <= 4:
             if all(re.match(r"^[A-Za-zÀ-ÖØ-öø-ÿ'-]+$", w) for w in words):
                 # Extra check: if it looks like a real name pattern
                 if all(w[0].isupper() for w in words if w):
-                    return line
+                    # Additional validation: not too long, no common non-name patterns
+                    if len(line) <= 50 and not re.search(r'\d', line):  # No numbers
+                        print(f"[NAME_EXTRACT] Found potential name: '{line}'")
+                        return line
     
     # Strategy 4: Look for Phone/Email section header
     for i, line in enumerate(lines[:20]):
@@ -284,6 +293,7 @@ def infer_name_from_text(raw_text: str) -> str | None:
                 if len(prev_line.split()) <= 4 and all(w[0].isupper() for w in prev_line.split() if w):
                     return prev_line
 
+    print("[NAME_EXTRACT] No name found")
     return None
 
 
