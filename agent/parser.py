@@ -284,6 +284,13 @@ def infer_name_from_text(raw_text: str) -> str | None:
                         print(f"[NAME_EXTRACT] Found potential name: '{line}'")
                         return line
     
+    # Strategy 3.5: Look for initials + name pattern (S. DIVYA, etc.)
+    for i, line in enumerate(lines[:10]):
+        # Look for patterns like "S. DIVYA" or "JOHN DOE"
+        if re.match(r'^[A-Z]\.\s+[A-Z]+', line):  # S. DIVYA
+            print(f"[NAME_EXTRACT] Found initial.name pattern: '{line}'")
+            return line
+    
     # Strategy 4: Look for Phone/Email section header
     for i, line in enumerate(lines[:20]):
         if 'phone' in line.lower() or 'email' in line.lower():
