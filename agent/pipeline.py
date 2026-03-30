@@ -148,13 +148,17 @@ def run_hiring_pipeline(job_id: int, file_path: str) -> dict:
     create_db()
 
     try:
+        print(f"\n[PIPELINE] Starting pipeline for {os.path.basename(file_path)} with job_id={job_id}")
         with Session(engine) as session:
             job = session.get(JobDescription, job_id)
             if not job:
                 raise ValueError(f"Job ID {job_id} not found")
 
             # Step 1: Resume Parser + JD Embedding (Affinda/Unstructured + OpenAI Embeddings)
+            print(f"[PIPELINE] Starting parse_resume...")
             parsed = parse_resume(file_path)
+            print(f"[PIPELINE] Parsed result: {list(parsed.keys())}")
+            
             jd_embedding = embed_text(job.description)  # Embed JD
             resume_embedding = embed_text(parsed.get('raw_text', ''))
 
@@ -299,16 +303,18 @@ def run_hiring_pipeline(job_id: int, file_path: str) -> dict:
             })
             return base
     except OperationalError as e:
-        print(f"Database error: {e}")
+        print(f"[PIPELINE] Database error: {e}")
         # Return a graceful error response
         return {
             'error': 'Database unavailable - data will be stored temporarily',
             'candidate_name': 'Unknown',
-            'status': 'PROCESSING',
+            'status': 'ERROR',
             'message': 'Resume processed but could not save to database. Please try again.'
         }
     except Exception as e:
-        print(f"Pipeline error: {e}")
+        import traceback
+        print(f"[PIPELINE] Unexpected error: {type(e).__name__}: {str(e)}")
+        print(f"[PIPELINE] Traceback: {traceback.format_exc()}")
         return {
             'error': str(e),
             'status': 'ERROR',

@@ -274,10 +274,27 @@ def infer_name_from_text(raw_text: str) -> str | None:
 
 
 def parse_resume(file_path: str) -> dict:
-    raw_text, is_image_based = extract_text(file_path)
+    try:
+        raw_text, is_image_based = extract_text(file_path)
+        print(f"[PARSER] Extracted {len(raw_text) if raw_text else 0} chars from {os.path.basename(file_path)}")
+    except Exception as e:
+        print(f"[PARSER] extract_text failed: {type(e).__name__}: {str(e)}")
+        return {
+            'name': None,
+            'email': None,
+            'phone': None,
+            'current_role': None,
+            'experience_years': None,
+            'skills': None,
+            'education': None,
+            'red_flags': f'[ERROR] Text extraction failed: {str(e)}',
+            'raw_text': '',
+            'is_image_based': False
+        }
     
     # If no text could be extracted, return appropriate error
     if raw_text.startswith('['):
+        print(f"[PARSER] Text starts with '[' - likely an error: {raw_text[:100]}")
         return {
             'name': None,
             'email': None,
@@ -292,20 +309,46 @@ def parse_resume(file_path: str) -> dict:
         }
 
     # First, try to extract name BEFORE AI parsing
-    inferred_name = infer_name_from_text(raw_text)
+    try:
+        inferred_name = infer_name_from_text(raw_text)
+        print(f"[PARSER] Inferred name: {inferred_name}")
+    except Exception as e:
+        print(f"[PARSER] infer_name_from_text failed: {type(e).__name__}: {str(e)}")
+        inferred_name = None
     
     # Then parse with AI
-    parsed = parse_resume_with_ai(raw_text)
+    try:
+        parsed = parse_resume_with_ai(raw_text)
+        print(f"[PARSER] AI parsing succeeded: {parsed.get('name')}")
+    except Exception as e:
+        print(f"[PARSER] parse_resume_with_ai failed: {type(e).__name__}: {str(e)}")
+        parsed = {
+            'name': inferred_name,
+            'email': None,
+            'phone': None,
+            'current_role': None,
+            'experience_years': None,
+            'skills': None,
+            'education': None,
+            'red_flags': f'AI parsing error: {str(e)}'
+        }
+    
     parsed['raw_text'] = raw_text
     parsed['is_image_based'] = is_image_based
 
     # Use inferred name if AI couldn't find one
     if not parsed.get('name') and inferred_name:
         parsed['name'] = inferred_name
+        print(f"[PARSER] Using inferred name: {inferred_name}")
     elif not parsed.get('name'):
         # Second attempt at inference if both failed
-        inferred = infer_name_from_text(raw_text)
-        if inferred:
-            parsed['name'] = inferred
+        try:
+            inferred = infer_name_from_text(raw_text)
+            if inferred:
+                parsed['name'] = inferred
+                print(f"[PARSER] Second inference succeeded: {inferred}")
+        except:
+            pass
     
+    print(f"[PARSER] Final result: name={parsed.get('name')}, email={parsed.get('email')}")
     return parsed
