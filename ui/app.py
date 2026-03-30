@@ -529,7 +529,6 @@ Salary Range: {salary_range or 'Not specified'}
 {job_description}"""
                 jid = create_job(job_title, full_desc)
                 st.success(f"Job posted successfully! ID: {jid}")
-                st.balloons()
             else:
                 st.error("Please fill in the job title and description.")
 
