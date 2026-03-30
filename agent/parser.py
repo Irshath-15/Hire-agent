@@ -14,100 +14,156 @@ load_dotenv()
 client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 
 def ocr_image_with_tesseract(image: Image.Image) -> str:
-    """Use Tesseract OCR via pytesseract library."""
-    try:
-        import pytesseract
-        
-        # Set tesseract path based on OS
-        system = platform.system()
-        
-        if system == "Windows":
-            # Windows path
-            pytesseract.pytesseract.pytesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
-        elif system == "Linux":
-            # Linux/Streamlit Cloud - try common paths
-            try:
-                # Try to find tesseract in PATH
-                result = subprocess.run(['which', 'tesseract'], capture_output=True, text=True, timeout=5)
-                if result.returncode == 0:
-                    pytesseract.pytesseract.pytesseract_cmd = result.stdout.strip()
-                else:
-                    # Fallback to default Linux path
-                    pytesseract.pytesseract.pytesseract_cmd = '/usr/bin/tesseract'
-            except:
-                # Use default Linux path
-                pytesseract.pytesseract.pytesseract_cmd = '/usr/bin/tesseract'
-        
-        # Try OCR with timeout
-        result = pytesseract.image_to_string(image, timeout=10)
-        text = result.strip() if result else ""
-        
-        if text:
-            print(f"[OCR] Successfully extracted {len(text)} characters")
-            return text
-        else:
-            print("[OCR] OCR completed but no text found")
-            return ""
+    """Use Tesseract OCR via pytesseract library with multiple fallback methods."""
+    # Try different OCR configurations
+    configs = [
+        '',  # Default
+        '--psm 6',  # Uniform block of text
+        '--psm 3',  # Fully automatic page segmentation
+        '--psm 1',  # Automatic page segmentation with OSD
+    ]
+    
+    for config in configs:
+        try:
+            import pytesseract
             
-    except ImportError:
-        print("[OCR] pytesseract not available - OCR disabled")
-        return ""
-    except Exception as e:
-        print(f"[OCR] OCR failed: {type(e).__name__}: {str(e)}")
-        return ""
+            # Set tesseract path based on OS
+            system = platform.system()
+            
+            if system == "Windows":
+                pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
+            elif system == "Linux":
+                # Try multiple possible paths
+                possible_paths = [
+                    '/usr/bin/tesseract',
+                    '/usr/local/bin/tesseract',
+                    'tesseract'  # In PATH
+                ]
+                
+                tesseract_path = None
+                for path in possible_paths:
+                    try:
+                        # Test if tesseract is available
+                        result = subprocess.run([path, '--version'], 
+                                              capture_output=True, text=True, timeout=5)
+                        if result.returncode == 0:
+                            tesseract_path = path
+                            break
+                    except:
+                        continue
+                
+                if tesseract_path:
+                    pytesseract.pytesseract.tesseract_cmd = tesseract_path
+                else:
+                    # Last resort - assume it's in PATH
+                    pytesseract.pytesseract.tesseract_cmd = 'tesseract'
+            
+            # Try OCR with current config
+            result = pytesseract.image_to_string(image, config=config, timeout=15)
+            text = result.strip() if result else ""
+            
+            if text and len(text) > 10:  # Require minimum text length
+                return text
+                
+        except ImportError:
+            return ""  # pytesseract not available
+        except Exception as e:
+            print(f"OCR with config '{config}' failed: {e}")
+            continue
+    
+    return ""  # All OCR attempts failed
 
 
 def extract_text_from_pdf(file_path: str) -> tuple:
-    """Extract text from PDF. Handles both searchable and image-based PDFs with Tesseract OCR."""
+    """Extract text from PDF. Tries multiple methods to ensure text extraction."""
     try:
         doc = fitz.open(file_path)
     except Exception as e:
-        print(f"PDF open error: {e}")
-        return f"[ERROR] Could not open PDF: {str(e)}", True
+        return f"[ERROR] Could not open PDF: {str(e)}", False
     
     text = ""
-    image_based = False
-    has_searchable_content = False
+    has_any_content = False
     
-    # First try to extract text normally
     try:
+        # Method 1: Standard text extraction
         for page in doc:
             page_text = page.get_text()
             if page_text.strip():
                 text += page_text + "\n"
-                has_searchable_content = True
-    except Exception as e:
-        print(f"PDF text extraction error: {e}")
-    
-    # If no searchable text found, try OCR on rendered images
-    if not has_searchable_content:
-        image_based = True
+                has_any_content = True
         
-        try:
-            for page_num, page in enumerate(doc):
-                try:
-                    # Render page to image using fitz
-                    pix = page.get_pixmap(matrix=fitz.Matrix(2, 2))
-                    img_data = pix.tobytes("ppm")
-                    img = Image.open(io.BytesIO(img_data))
+        # If we got some text, return it
+        if has_any_content and text.strip():
+            doc.close()
+            return text.strip(), False
+            
+    except Exception as e:
+        print(f"Standard extraction failed: {e}")
+    
+    # Method 2: Try OCR on all pages if standard extraction failed or got no text
+    print("Attempting OCR extraction...")
+    ocr_text = ""
+    ocr_success = False
+    
+    try:
+        for page_num, page in enumerate(doc):
+            try:
+                # Render page to image
+                pix = page.get_pixmap(matrix=fitz.Matrix(2, 2))  # Higher resolution
+                img_data = pix.tobytes("png")
+                img = Image.open(io.BytesIO(img_data))
+                
+                # Try OCR
+                page_ocr = ocr_image_with_tesseract(img)
+                if page_ocr.strip():
+                    ocr_text += page_ocr + "\n"
+                    ocr_success = True
+                    has_any_content = True
                     
-                    # OCR the image using Tesseract via pytesseract
-                    ocr_text = ocr_image_with_tesseract(img)
-                    if ocr_text.strip():
-                        text += ocr_text + "\n"
-                except Exception as page_err:
-                    print(f"Page {page_num} OCR error: {page_err}")
-                    continue
-                    
-        except Exception as e:
-            print(f"PDF OCR loop error: {e}")
+            except Exception as page_err:
+                print(f"Page {page_num} OCR failed: {page_err}")
+                continue
+                
+    except Exception as e:
+        print(f"OCR process failed: {e}")
+    
+    # Combine results
+    final_text = text + ocr_text if text else ocr_text
     
     try:
         doc.close()
     except:
         pass
     
-    return text.strip(), image_based
+    if final_text.strip():
+        return final_text.strip(), ocr_success
+    else:
+        # Last resort: try to extract any text at all with different settings
+        try:
+            doc = fitz.open(file_path)
+            fallback_text = ""
+            for page in doc:
+                # Try different extraction flags
+                page_text = page.get_text("text")  # Try basic text
+                if not page_text:
+                    page_text = page.get_text("blocks")  # Try blocks
+                if page_text and isinstance(page_text, str) and page_text.strip():
+                    fallback_text += page_text + "\n"
+                elif page_text and isinstance(page_text, list):
+                    # Handle block format
+                    for block in page_text:
+                        if isinstance(block, dict) and block.get('text'):
+                            fallback_text += block['text'] + "\n"
+            doc.close()
+            
+            if fallback_text.strip():
+                return fallback_text.strip(), False
+                
+        except Exception as e:
+            print(f"Fallback extraction failed: {e}")
+    
+    # Only return error if ALL methods failed
+    return "[ERROR] Could not extract any text from PDF using any method", True
 
 def extract_text_from_docx(file_path: str) -> tuple:
     """Extract text from DOCX file - returns actual document text."""
@@ -347,8 +403,8 @@ def parse_resume(file_path: str) -> dict:
         }
     
     # If no text could be extracted, return appropriate error
-    if not raw_text or raw_text.startswith('['):
-        print(f"[PARSER] No text extracted or error: {raw_text[:100] if raw_text else 'empty'}")
+    if not raw_text:
+        print(f"[PARSER] No text extracted: empty")
         return {
             'name': None,
             'email': None,
@@ -357,10 +413,36 @@ def parse_resume(file_path: str) -> dict:
             'experience_years': None,
             'skills': None,
             'education': None,
-            'red_flags': raw_text or '[ERROR] Could not extract text - ensure file is readable',
-            'raw_text': raw_text or '',
-            'is_image_based': is_image_based
+            'red_flags': '[ERROR] Could not extract text - ensure file is readable',
+            'raw_text': '',
+            'is_image_based': False
         }
+    
+    # If text starts with error message, try to extract any usable text after it
+    if raw_text.startswith('[') and 'ERROR' in raw_text:
+        # Look for any actual content after the error message
+        lines = raw_text.split('\n')
+        actual_text = []
+        for line in lines:
+            if not line.startswith('[') or 'ERROR' not in line:
+                actual_text.append(line)
+        if actual_text:
+            raw_text = '\n'.join(actual_text).strip()
+            print(f"[PARSER] Stripped error prefix, using: {raw_text[:100]}...")
+        else:
+            # No usable text found, return error
+            return {
+                'name': None,
+                'email': None,
+                'phone': None,
+                'current_role': None,
+                'experience_years': None,
+                'skills': None,
+                'education': None,
+                'red_flags': raw_text,
+                'raw_text': raw_text,
+                'is_image_based': is_image_based
+            }
 
     # First, try to extract name BEFORE AI parsing
     try:

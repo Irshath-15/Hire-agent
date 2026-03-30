@@ -1,0 +1,124 @@
+ALEX SHARMA
++1-415-555-0123 | alex.sharma@email.com | San Francisco, CA
+LinkedIn: linkedin.com/in/alexsharma | GitHub: github.com/alexsharma
+
+═══════════════════════════════════════════════════════════════════════════════
+
+PROFESSIONAL SUMMARY
+
+Senior Full Stack Software Engineer with 8+ years of experience building scalable 
+web applications and backend systems. Expert in Python, JavaScript, and cloud 
+architecture. Proven track record of leading technical teams and delivering 
+high-impact projects for Fortune 500 companies.
+
+═══════════════════════════════════════════════════════════════════════════════
+
+CORE SKILLS
+
+Backend Development:
+• Python (FastAPI, Django, Flask) — 8 years
+• Node.js & Express — 6 years
+• REST APIs & GraphQL design
+• Microservices architecture
+• PostgreSQL, MongoDB, Redis
+
+Frontend Development:
+• React.js & Next.js — 7 years
+• TypeScript — 5 years
+• HTML5, CSS3, Tailwind CSS
+• Vue.js & Angular basics
+
+DevOps & Cloud:
+• AWS (EC2, S3, Lambda, RDS) — 7 years
+• Docker & Kubernetes
+• CI/CD pipelines (GitHub Actions, Jenkins)
+• Google Cloud Platform (GCP)
+
+Leadership & Communication:
+• Technical team lead (managed 6+ engineers)
+• Agile/Scrum methodologies
+• Cross-functional collaboration
+• Technical documentation & mentoring
+
+═══════════════════════════════════════════════════════════════════════════════
+
+PROFESSIONAL EXPERIENCE
+
+SENIOR FULL STACK ENGINEER
+TechCorp Solutions, San Francisco, CA | Jan 2022 - Present (4+ years)
+
+• Led development of microservices platform using Python FastAPI and Node.js, 
+  serving 2M+ daily active users
+• Architected cloud infrastructure on AWS (Kubernetes, auto-scaling), reducing 
+  deployment time by 65%
+• Mentored team of 5 junior engineers, improving code quality and reducing bugs 
+  by 40%
+• Implemented real-time data pipeline with Python, processing 1TB+ daily data
+• Optimized database queries, improving API response time from 2.5s to 150ms
+• Led migration of monolithic app to microservices, reducing infrastructure costs 
+  by 35%
+
+FULL STACK ENGINEER
+DataFlow Inc., San Francisco, CA | Jun 2019 - Dec 2021 (2.5 years)
+
+• Built end-to-end SaaS platform using React, Python Django, and PostgreSQL
+• Developed RESTful APIs serving 500K requests/day with 99.9% uptime
+• Implemented automated testing framework, achieving 85% code coverage
+• Designed and deployed CI/CD pipelines using GitHub Actions
+• Collaborated with product team to define technical requirements and architecture
+• Reduced page load time by 50% through frontend optimization and caching
+
+JUNIOR FULL STACK DEVELOPER
+StartupX, San Francisco, CA | Mar 2018 - May 2019 (1+ years)
+
+• Developed full-stack features using React and Python Flask
+• Built RESTful APIs with proper authentication and authorization
+• Managed PostgreSQL database design and optimization
+• Participated in code reviews and followed best practices
+• Contributed to open-source projects
+
+═══════════════════════════════════════════════════════════════════════════════
+
+EDUCATION
+
+BACHELOR OF SCIENCE IN COMPUTER SCIENCE
+University of California, Berkeley | Graduated: May 2017
+GPA: 3.8/4.0
+Relevant Coursework: Algorithms, Data Structures, Distributed Systems, 
+Database Systems, Software Engineering
+
+═══════════════════════════════════════════════════════════════════════════════
+
+CERTIFICATIONS & ACHIEVEMENTS
+
+• AWS Certified Solutions Architect - Professional (2023)
+• Kubernetes Administrator Certification (CKA) - 2022
+• Google Cloud Professional Data Engineer (2022)
+• Best Engineering Innovation Award - TechCorp Solutions (2023)
+• Speaker at PyCon 2023 - "Scaling Python Applications"
+
+═══════════════════════════════════════════════════════════════════════════════
+
+TECHNICAL PROJECTS
+
+Portfolio: https://alexsharma.dev
+
+Project: Real-time Monitoring Dashboard
+• Built with React, Python FastAPI, WebSockets
+• Processes and visualizes 100k events/second
+• Deployed on AWS with auto-scaling
+
+Project: Open-Source ORM Library
+• Created Python ORM with 5k+ GitHub stars
+• 50+ contributors, maintained for 4+ years
+• Published in PyPI with 100k+ monthly downloads
+
+═══════════════════════════════════════════════════════════════════════════════
+
+LANGUAGES
+
+• English (Native)
+• Spanish (Fluent)
+• Mandarin (Basic)
+
+═══════════════════════════════════════════════════════════════════════════════
