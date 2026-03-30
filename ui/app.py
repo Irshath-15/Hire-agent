@@ -695,38 +695,39 @@ with tab3:
             if active_job_ids and st.button(
                 "Start screening", use_container_width=True
             ):
+
                 # Custom loader CSS (inject once) and hide Streamlit spinner
                 st.markdown("""
-                <style>
-                /* Hide Streamlit's default spinner */
-                .stSpinner, .stSpinner > div { display: none !important; }
-                /* Custom loader */
-                .loader {
-                    width: 50px;
-                    aspect-ratio: 1;
-                    border-radius: 50%;
-                    background: #514b82;
-                    -webkit-mask: radial-gradient(circle closest-side at 50% 40%,#0000 94%, #000);
-                    transform-origin: 50% 40%;
-                    animation: l25 1s infinite linear;
-                    margin: 0 auto 20px auto;
-                    z-index: 9999;
-                    position: relative;
-                }
-                @keyframes l25 {
-                    100% {transform: rotate(1turn)}
-                }
-                </style>
+    <style>
+    /* Hide Streamlit's default spinner */
+    .stSpinner, .stSpinner > div { display: none !important; }
+    /* Custom loader */
+    .loader {
+        width: 50px;
+        aspect-ratio: 1;
+        border-radius: 50%;
+        background: #514b82;
+        -webkit-mask: radial-gradient(circle closest-side at 50% 40%,#0000 94%, #000);
+        transform-origin: 50% 40%;
+        animation: l25 1s infinite linear;
+        margin: 0 auto 20px auto;
+        z-index: 9999;
+        position: relative;
+    }
+    @keyframes l25 {
+        100% {transform: rotate(1turn)}
+    }
+    </style>
                 """, unsafe_allow_html=True)
                 steps = [
-                    "Uploading file",
-                    "Detecting file type",
-                    "Extracting text (PDF/OCR)",
-                    "Preprocessing text",
-                    "AI parsing (LLM)",
-                    "Scoring and ranking",
-                    "Saving results"
-                ]
+        "Uploading file",
+        "Detecting file type",
+        "Extracting text (PDF/OCR)",
+        "Preprocessing text",
+        "AI parsing (LLM)",
+        "Scoring and ranking",
+        "Saving results"
+    ]
 
                 # Create a placeholder for each file's progress/result
                 file_placeholders = [st.empty() for _ in valid_files]
@@ -880,163 +881,6 @@ with tab3:
                 ), unsafe_allow_html=True)
 
                 st.success(f"Done! {len(results)} resume(s) screened.")
-                import time
-                time.sleep(1)
-                st.rerun()
-
-                    # Create uploads directory if it doesn't exist
-                    upload_dir = "uploads"
-                    if not os.path.exists(upload_dir):
-                        os.makedirs(upload_dir, exist_ok=True)
-
-                    save_path = os.path.join("uploads", file.name)
-                    with open(save_path, "wb") as f:
-                        f.write(file.getbuffer())
-
-                    ext = os.path.splitext(file.name)[1].lower()
-                    if ext in [".png", ".jpg", ".jpeg"]:
-                        st.info(f"Keeping image format for {file.name} ({ext[1:].upper()}) and processing in source format.")
-
-                    try:
-                        # Process resume against all selected jobs and use the first one's result
-                        result = process_resume(save_path, active_job_ids[0])
-                        results.append(result)
-
-                        badge = {
-                            "SHORTLIST": "badge-shortlist",
-                            "REVIEW":    "badge-review",
-                            "REJECT":    "badge-reject"
-                        }.get(result["status"], "badge-pending")
-
-                        # Display result with better error handling
-                        name_display = result.get('name') or 'Unable to parse'
-                        email_display = result.get('email') or 'No email'
-                        score_display = result.get('score') or 0
-                        status = result.get('status', 'ERROR')
-                        
-                        # Show error details if parsing failed
-                        if status == 'ERROR':
-                            error_msg = result.get('error') or result.get('message') or 'Unknown error'
-                            st.warning(f"⚠️ **Processing Error for {file.name}**\n\n{error_msg}")
-                            continue
-                        
-                        # Check if it's an image-based PDF that couldn't be processed
-                        resume_text = (result.get('raw_text') or '').lower()
-                        if "[image-based pdf]" in resume_text or "[ocr-failed]" in resume_text or "[error]" in resume_text:
-                            st.warning(f"""
-                            ⚠️ **Could Not Extract Text from PDF**
-                            
-                            **File:** {file.name}
-                            
-                            The system tried to extract text but was unsuccessful. This could be due to:
-                            - Scanned/image-based PDF without OCR conversion
-                            - Encrypted or protected PDF
-                            - PDF with complex formatting
-                            
-                            **Solutions:**
-                            1. Convert scanned PDF to searchable format: [iLovePDF OCR](https://www.ilovepdf.com/ocr)
-                            2. Export original document as "Save as PDF"
-                            3. Use PDF with copy-paste enabled
-                            """)
-                            continue
-                        
-                        # Search keyword in resume text
-                        keyword_result_html = ""
-                        keyword = resume_search_keyword.strip().lower() if resume_search_keyword else ''
-                        if keyword:
-                            if keyword in resume_text:
-                                keyword_result_html = f"<div style='background:#e6ffed; border-radius:8px; padding:10px; color:#065f46; border:1px solid #a7f3d0; margin-top:8px;'>Keyword '{resume_search_keyword}' was found in resume.</div>"
-                            else:
-                                keyword_result_html = f"<div style='background:#fff4e5; border-radius:8px; padding:10px; color:#92400e; border:1px solid #fde68a; margin-top:8px;'>Keyword '{resume_search_keyword}' not found in resume.</div>"
-
-                        # Show warning if there are red flags
-                        red_flags_html = ""
-                        if result.get('red_flags'):
-                            red_flags_html = f"""
-                            <div style='background:#7f1d1d; border-radius:8px; padding:10px;
-                                        font-size:11px; color:#fca5a5; margin-top:8px;
-                                        border:1px solid #991b1b;'>
-                                ⚠️ {result['red_flags']}
-                            </div>
-                            """
-
-                        st.markdown(f"""
-                            <div class='candidate-card'>
-                                <div style='display:flex; justify-content:space-between;
-                                            align-items:center;'>
-                                    <div>
-                                        <div style='font-size:15px; font-weight:600;
-                                                    color:#FFFFFF;'>
-                                            {name_display}
-                                        </div>
-                                        <div style='font-size:12px; color:#B0B8C4;
-                                                    margin-top:2px;'>
-                                            {email_display}
-                                        </div>
-                                    </div>
-                                    <div style='text-align:right;'>
-                                        <span class='badge {badge}'>
-                                            {result['status']}
-                                        </span>
-                                        <div style='font-size:22px; font-weight:700;
-                                                    color:#FFFFFF; margin-top:4px;'>
-                                            {score_display:.0f}
-                                            <span style='font-size:12px;
-                                                         color:#B0B8C4;'>/100</span>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div style='margin-top:12px;'>
-                                    <div style='font-size:12px; color:#B0B8C4;
-                                                margin-bottom:3px;'>
-                                        Skills match: {result.get('skills_match', 0):.0f}%
-                                    </div>
-                                    <div class='score-bar-bg'>
-                                        <div class='score-bar-fill'
-                                             style='width:{result.get("skills_match", 0)}%;'>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div style='margin-top:8px;'>
-                                    <div style='font-size:12px; color:#B0B8C4;
-                                                margin-bottom:3px;'>
-                                        Experience fit: {result.get('experience_fit', 0):.0f}%
-                                    </div>
-                                    <div class='score-bar-bg'>
-                                        <div class='score-bar-fill'
-                                             style='width:{result.get("experience_fit", 0)}%;'>
-                                        </div>
-                                    </div>
-                                </div>
-                                {red_flags_html}
-                                {keyword_result_html}
-                            </div>
-                        """, unsafe_allow_html=True)
-
-                    except Exception as e:
-                        file_placeholders[i].error(f"Failed: {file.name} — {str(e)}")
-
-                # Clean up loader/steps placeholders if any remain
-
-                st.markdown("""
-                    <div style='background:#1a1f2e; border-radius:12px; padding:12px;
-                                border:1px solid #2d3748; margin-top:12px;
-                                box-shadow: 0 1px 3px rgba(0,0,0,0.2);'>
-                        <strong style='color:#E9ECEF;'>Processing summary</strong><br>
-                        <span style='color:#B0B8C4;'>Processed files: {processed}</span><br>
-                        <span style='color:#B0B8C4;'>Accepted candidates: {accepted}</span><br>
-                        <span style='color:#B0B8C4;'>Under review: {review}</span><br>
-                        <span style='color:#B0B8C4;'>Rejected: {rejected}</span>
-                    </div>
-                """.format(
-                    processed=len(valid_files),
-                    accepted=len([r for r in results if r['status'] == 'SHORTLIST']),
-                    review=len([r for r in results if r['status'] == 'REVIEW']),
-                    rejected=len([r for r in results if r['status'] == 'REJECT'])
-                ), unsafe_allow_html=True)
-
-                st.success(f"Done! {len(results)} resume(s) screened.")
-                
                 import time
                 time.sleep(1)
                 st.rerun()
